@@ -18,6 +18,29 @@ Choose **Add provider**, select a provider such as Anthropic or OpenAI, enter it
 
 Providers with native authentication need their native credentials instead. Bedrock, Vertex, Azure, and Codex use AWS credentials and a region, an ADC project, an `api-version`, and OAuth respectively; filling only the API-key field does not configure them.
 
+### GitHub Copilot subscription
+
+Sign in once from a terminal:
+
+```sh
+dsh auth login github-copilot
+```
+
+Open the printed GitHub URL, enter its device code, and wait for `GitHub Copilot: signed in`. For GitHub Enterprise, add `--enterprise-domain <domain>`.
+
+In **Settings → Models**, choose **Add provider → GitHub Copilot** and save without entering an API key. The keyless provider profile lets pi-ai use the stored OAuth credential, exchange it for a short-lived Copilot token, and refresh that token before later requests. Select one of the provider's models from the model picker.
+
+The refreshable record lives in owner-only `$DSH_HOME/.pi-ai-credentials.json`, separate from static API keys. Inspect or remove it without exposing either token:
+
+```sh
+dsh auth status github-copilot
+dsh auth logout github-copilot
+```
+
+Owner-only modes protect the credential from other OS users, not from tools running as the same user. Do not grant an untrusted tool read access to `$DSH_HOME`.
+
+Do not add `apiKeyEnv` to this OAuth profile. An explicit key is a direct request override and bypasses the stored GitHub token exchange and refresh.
+
 ## Add a custom provider
 
 Choose **Add a custom provider** for a company gateway, self-hosted server, or provider absent from the installed catalog. Supply a lowercase Provider ID, base URL, API protocol, credential, and at least one model.
@@ -88,6 +111,7 @@ If a saved default names a provider that was deleted, the composer displays **Se
 ## Troubleshooting
 
 - **`MISSING_CREDENTIAL`** — Store the provider key through the Models page or supply the referenced environment variable.
+- **GitHub Copilot says `Provider is not configured`** — Run `dsh auth login github-copilot`, then leave the provider's API-key field empty so the stored OAuth credential is used.
 - **`UNKNOWN_MODEL`** — Select a configured model or add the missing model to the custom provider.
 - **Fetching available models returns 401** — Check the key. Model discovery calls the OpenAI-compatible `GET /models` endpoint; enter models manually for endpoints that do not provide it.
 - **An image is refused before sending** — The model declares no image modality. Give a custom provider's model `input: [text, image]`; DeepSeek's own chat-completions route is text-only and cannot be configured otherwise.

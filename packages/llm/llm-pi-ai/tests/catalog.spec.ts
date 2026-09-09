@@ -12,6 +12,7 @@ import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
+import { catalogModels } from '../src/catalog.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'
 import { assemble } from './assemble.ts'
@@ -934,30 +935,16 @@ describe('configurable-provider directory', () => {
     expect(ctx.llm.listConfigurableProviders()).toHaveLength(catalogOnly)
   })
 
-  it('withholds a catalog route this adapter cannot authenticate', async () => {
+  it('offers catalog routes that authenticate through stored OAuth', async () => {
     const ctx = await harness({})
     const offered = ctx.llm.listConfigurableProviders().map(entry => entry.provider)
 
-    // `openai-codex` is the one installed provider that authenticates through
-    // OAuth alone. pi-ai resolves OAuth only from a *stored* credential, this
-    // adapter constructs its collection with no credential store, and nothing
-    // here runs a login flow — so every request on such a route fails with
-    // `Provider is not configured` before it goes out. Offering it would put a
-    // provider on the settings page that no amount of configuration can make
-    // work.
-    expect(offered).not.toContain('openai-codex')
-    // A provider that offers OAuth *beside* an api-key method keeps its entry:
-    // the key is a path this adapter can serve.
+    expect(offered).toContain('openai-codex')
     expect(offered).toContain('anthropic')
     expect(offered).toContain('openai')
   })
 
-  it('still lists a withheld route a stored profile names, as a catalog route', async () => {
-    // Withholding the offer must not strand a profile someone already stored:
-    // the route keeps its entry so a configuration surface can edit or delete
-    // it, and `declared` still answers catalog membership rather than the
-    // offer, so the page does not mislabel it as a route this deployment
-    // invented.
+  it('lists a stored OAuth-capable route as a catalog route', async () => {
     const ctx = await harness({ providers: { 'openai-codex': { apiKeyEnv: KEY_ENV } } })
 
     expect(ctx.llm.listConfigurableProviders()).toContainEqual({
@@ -967,5 +954,34 @@ describe('configurable-provider directory', () => {
       settingsPath: ['providers', 'openai-codex'],
       declared: false,
     })
+  })
+})
+
+describe('uncataloged catalog models', () => {
+  it('carries gpt-6-astra on the github-copilot route, cloned from its shipped sibling', () => {
+    const models = catalogModels('github-copilot')
+    const astra = models.get('gpt-6-astra')
+    const sibling = models.get('gpt-5.6-sol')
+
+    // A model pi-ai has not cataloged yet must still serve: it needs the wire
+    // protocol and the Copilot request headers only a catalog entry carries.
+    expect(astra).toBeDefined()
+    expect(astra?.name).toBe('GPT-6 Astra')
+    expect(astra?.provider).toBe('github-copilot')
+    expect(astra?.api).toBe('openai-responses')
+    expect(astra?.reasoning).toBe(true)
+    expect(astra?.headers?.['Copilot-Integration-Id']).toBe(sibling?.headers?.['Copilot-Integration-Id'])
+    expect(astra?.headers?.['Editor-Version']).toBe(sibling?.headers?.['Editor-Version'])
+    // Every field but id and name is the sibling's, so the clone tracks the
+    // sibling's protocol and headers without restating them.
+    expect({ ...astra, id: sibling?.id, name: sibling?.name }).toEqual(sibling)
+  })
+
+  it('adds no uncataloged model to an unrelated catalog route', () => {
+    expect(catalogModels('openai').has('gpt-6-astra')).toBe(false)
+  })
+
+  it('returns an empty catalog for a route pi-ai does not ship', () => {
+    expect(catalogModels('not-a-pi-ai-provider').size).toBe(0)
   })
 })

@@ -9,6 +9,12 @@
   ],
   "references": [
     {
+      "path": "../../util/atomic-write"
+    },
+    {
+      "path": "../../util/home-paths"
+    },
+    {
       "path": "../../util/launch-environment"
     },
     {

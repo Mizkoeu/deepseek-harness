@@ -57,6 +57,22 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', '--save-dev', 'x'] })
   })
 
+  it('routes GitHub Copilot authentication commands', () => {
+    expect(parse(['auth', 'login', 'github-copilot']))
+      .toEqual({ mode: 'auth', action: 'login', provider: 'github-copilot' })
+    expect(parse(['auth', 'login', 'github-copilot', '--enterprise-domain', 'github.example']))
+      .toEqual({
+        mode: 'auth',
+        action: 'login',
+        provider: 'github-copilot',
+        enterpriseDomain: 'github.example',
+      })
+    expect(parse(['auth', 'status', 'github-copilot']))
+      .toEqual({ mode: 'auth', action: 'status', provider: 'github-copilot' })
+    expect(parse(['auth', 'logout', 'github-copilot']))
+      .toEqual({ mode: 'auth', action: 'logout', provider: 'github-copilot' })
+  })
+
   it('routes profile and web config dumps', () => {
     expect(parse(['--profile', 'web', '--dump-config']))
       .toEqual({ mode: 'dump-config', profile: 'web', defaultOnly: false, patches: [] })
@@ -95,6 +111,9 @@ describe('parseDshArgs', () => {
     expect(exitCode(['plugin', 'add', 'x'])).toBe(1) // --profile required
     expect(exitCode(['plugin', '--profile', 'tui'])).toBe(1) // nothing to forward
     expect(exitCode(['plugin', '--profile', ''])).toBe(1)
+    expect(exitCode(['auth', 'login', 'openai-codex'])).toBe(1)
+    expect(exitCode(['auth', 'login', 'github-copilot', '--enterprise-domain='])).toBe(1)
+    expect(exitCode(['auth', 'status'])).toBe(1)
     expect(exitCode(['--profile', 'x', 'plugin', 'add', 'y'])).toBe(1)
   })
 

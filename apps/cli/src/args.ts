@@ -11,7 +11,7 @@
  * and `dsh --profile web -h` prints the web app's help, not this one's.
  *
  * `web` is a hardcoded alias for `--profile web`; `plugin` manages a profile's
- * plugin dependencies by forwarding to pnpm.
+ * plugin dependencies, and `auth` manages provider-native credentials.
  * @module @deepseek-ai/dsh/args
  */
 
@@ -44,8 +44,17 @@ interface PluginInvocation {
   args: string[]
 }
 
+/** Manage the GitHub Copilot subscription credential. */
+export interface AuthInvocation {
+  mode: 'auth'
+  action: 'login' | 'status' | 'logout'
+  provider: 'github-copilot'
+  /** GitHub Enterprise domain for device login; omission selects github.com. */
+  enterpriseDomain?: string
+}
+
 /** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
-export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation
+export type DshInvocation = ProfileInvocation | DumpConfigInvocation | PluginInvocation | AuthInvocation
 
 /** Launcher flags shared by the default command and the `web` alias. */
 interface BootOptions {
@@ -68,6 +77,7 @@ Examples:
   dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay
   dsh --profile tui --resume <session>       arguments after the launcher flags reach the app
   dsh --profile web --help                   the web app's own flags and help
+  dsh auth login github-copilot              sign in with a Copilot subscription
   dsh plugin --profile tui add <package>     install a plugin into the tui profile
 `
 
@@ -179,6 +189,39 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
       if (args.length === 0) program.error('error: plugin needs pnpm arguments to forward (e.g. add <package>)')
       resolved = { mode: 'plugin', profile: options.profile, args }
     })
+
+  /** Accept the one provider whose native login the launcher currently owns. */
+  const copilotProvider = (command: Command, provider: string): 'github-copilot' => {
+    if (provider !== 'github-copilot') {
+      command.error(`error: unsupported auth provider ${JSON.stringify(provider)}; expected github-copilot`)
+    }
+    return 'github-copilot'
+  }
+
+  const auth = program.command('auth').description('manage provider-native credentials')
+  auth.command('login')
+    .description('start an interactive provider login')
+    .argument('<provider>', 'provider id (github-copilot)')
+    .option('--enterprise-domain <domain>', 'GitHub Enterprise domain; omit for github.com')
+    .action((provider: string, options: { enterpriseDomain?: string }, command: Command) => {
+      rejectParentOptions('auth')
+      if (options.enterpriseDomain === '') command.error('error: --enterprise-domain needs a domain')
+      resolved = {
+        mode: 'auth',
+        action: 'login',
+        provider: copilotProvider(command, provider),
+        ...options.enterpriseDomain === undefined ? {} : { enterpriseDomain: options.enterpriseDomain },
+      }
+    })
+  for (const action of ['status', 'logout'] as const) {
+    auth.command(action)
+      .description(action === 'status' ? 'show provider login status' : 'remove a stored provider login')
+      .argument('<provider>', 'provider id (github-copilot)')
+      .action((provider: string, _options: unknown, command: Command) => {
+        rejectParentOptions('auth')
+        resolved = { mode: 'auth', action, provider: copilotProvider(command, provider) }
+      })
+  }
 
   try {
     program.parse(argv, { from: 'user' })

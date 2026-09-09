@@ -11,9 +11,14 @@
 | `dsh --profile <name>` | 启动位于 `$DSH_HOME/profiles/<name>` 的指定 profile。 |
 | `dsh --profile headless "job"` | 运行一个全新的持久化会话，打印最终答案并退出。 |
 | `dsh web` | `--profile web` 的别名。 |
+| `dsh auth <action> github-copilot` | 登录、检查或移除 GitHub Copilot OAuth 凭据。 |
 | `dsh plugin --profile <name> <pnpm args>` | 通过在 profile 目录中转发给 pnpm 来管理该 profile 的插件。 |
 
 运行命令时所在的目录将作为默认 workspace 根目录。`web` 和 `headless` profile 在首次使用时会从随附模板自动初始化；其他任何 profile 都必须通过 `dsh plugin` 创建。
+
+## 提供方认证
+
+`dsh auth login github-copilot` 无需启动 profile 即可运行 GitHub 设备流程，打印验证 URL 和代码，并把 pi-ai 的可刷新凭据存入仅限所有者访问的 `$DSH_HOME/.pi-ai-credentials.json`。`dsh auth status github-copilot` 读取不含秘密的状态，`dsh auth logout github-copilot` 移除该提供方记录。GitHub Enterprise 登录向 `login` 传入 `--enterprise-domain <domain>`。[模型配置指南](../../docs/user/guide/providers.md)给出其余设置步骤。
 
 ## 应用参数
 

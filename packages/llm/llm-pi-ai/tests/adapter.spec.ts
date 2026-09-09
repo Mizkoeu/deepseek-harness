@@ -11,6 +11,8 @@ import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, 
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { InMemoryCredentialStore } from '@earendil-works/pi-ai'
+import type { OAuthCredential, Provider } from '@earendil-works/pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { resolveProfiles } from '../src/config.ts'
 import { assemble } from './assemble.ts'
@@ -57,6 +59,44 @@ beforeEach(() => {
 })
 
 describe('PiAiAdapter provider routing', () => {
+  it('uses a stored OAuth credential when the profile has no explicit key', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const resolved = resolveProfiles({ deepseek: { baseURL: server.url } })
+    const profile = resolved.get('deepseek')!
+    const oauthProvider: Provider = {
+      ...profile.piProvider,
+      auth: {
+        oauth: {
+          name: 'Test OAuth',
+          login: async () => { throw new Error('not used') },
+          refresh: async credential => credential,
+          toAuth: async credential => ({ apiKey: credential.access }),
+        },
+      },
+    }
+    const profiles = new Map([['deepseek', { ...profile, piProvider: oauthProvider }]])
+    const credentials = new InMemoryCredentialStore()
+    await credentials.modify('deepseek', async (): Promise<OAuthCredential> => ({
+      type: 'oauth',
+      refresh: 'refresh-token',
+      access: 'stored-oauth-access',
+      expires: Date.now() + 60_000,
+    }))
+    const adapter = new PiAiAdapter({
+      profiles: () => profiles,
+      resolveApiKey: () => Promise.resolve(undefined),
+      credentials,
+    })
+
+    for await (const _chunk of adapter.stream({
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      messages: [],
+    })) { /* drain */ }
+
+    expect(server.headers[0]?.authorization).toBe('Bearer stored-oauth-access')
+  })
+
   it('resolves a catalog model dynamically and uses a private endpoint', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(server.url)

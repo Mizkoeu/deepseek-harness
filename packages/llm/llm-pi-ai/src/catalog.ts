@@ -142,23 +142,44 @@ export function catalogProviderIds(): readonly string[] {
 }
 
 /**
- * Whether the installed catalog provider for one route declares an api-key
- * method — the only authentication this adapter obtains on its own.
- *
- * A key is what the harness resolves through its own credential seam and hands
- * pi-ai per request. pi-ai's other method, OAuth, resolves from a *stored*
- * OAuth credential alone: `resolveProviderAuth` has no ambient path for it,
- * this adapter builds its `Models` collection with no credential store, and
- * nothing here runs a login flow. So a provider offering OAuth by itself
- * leaves nothing for this adapter to authenticate with, and the posture such a
- * provider invites — no key configured, credentials discovered by the provider
- * — fails every request with `Provider is not configured`.
- * @param provider - provider route key.
- * @returns whether the catalog provider takes an api key; false for a route
- *   pi-ai does not ship, which the caller answers for separately.
+ * Models a provider's OAuth roster serves before a pi-ai release catalogs them,
+ * keyed by route. GitHub Copilot's roster gains a new OpenAI generation ahead
+ * of pi-ai's shipped data, and its multi-protocol route cannot describe a new
+ * model from `settings.yaml` alone: a model needs the wire protocol and the
+ * Copilot request headers that only a catalog entry carries. Each entry clones
+ * the shipped sibling it matches — same protocol, headers, and reasoning map —
+ * overriding only id and name. Drop an entry once a pi-ai bump ships the model
+ * natively; {@link withUncatalogedModels} then keeps the shipped descriptor.
  */
-export function catalogProviderTakesApiKey(provider: string): boolean {
-  return catalogProvider(provider)?.auth.apiKey !== undefined
+const UNCATALOGED_MODELS: Readonly<Record<string, readonly {
+  readonly id: string
+  readonly name: string
+  readonly cloneOf: string
+}[]>> = {
+  'github-copilot': [
+    { id: 'gpt-6-astra', name: 'GPT-6 Astra', cloneOf: 'gpt-5.6-sol' },
+  ],
+}
+
+/**
+ * Fold one route's uncataloged models into its catalog map, cloning each from
+ * its shipped sibling so the model inherits the wire protocol, request headers,
+ * and reasoning map its sibling already carries. A shipped id wins over a clone
+ * of the same id, so an entry left here after a pi-ai bump ships the model
+ * natively resolves to the shipped descriptor rather than the stale clone.
+ * @param provider - provider route key.
+ * @param shipped - the installed catalog models for the route.
+ * @returns the shipped models plus any resolvable clones.
+ */
+function withUncatalogedModels(provider: string, shipped: Map<string, Model<Api>>): Map<string, Model<Api>> {
+  const clones = new Map<string, Model<Api>>()
+  for (const extra of UNCATALOGED_MODELS[provider] ?? []) {
+    const sibling = shipped.get(extra.cloneOf)
+    /* v8 ignore next -- the installed catalog always ships the cloned sibling; this guards a future pi-ai rename */
+    if (sibling === undefined) continue
+    clones.set(extra.id, { ...sibling, id: extra.id, name: extra.name })
+  }
+  return new Map([...clones, ...shipped])
 }
 
 /**
@@ -169,7 +190,7 @@ export function catalogProviderTakesApiKey(provider: string): boolean {
 export function catalogModels(provider: string): Map<string, Model<Api>> {
   if (!catalogProviders().has(provider)) return new Map()
   const models = getBuiltinModels(provider as BuiltinProvider) as Model<Api>[]
-  return new Map(models.map(model => [model.id, model]))
+  return withUncatalogedModels(provider, new Map(models.map(model => [model.id, model])))
 }
 
 /**
