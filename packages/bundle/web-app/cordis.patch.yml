@@ -84,11 +84,24 @@
     - id: session-stats
       name: '@deepseek-ai/dsh-session-stats'
 
-    # Resolve bind host, SSH launch, and display once at boot, then mount the
-    # matching dual-face directory picker. Mount -native or -browse directly in
-    # an overlay to pin the interaction.
-    - id: directory-picker
-      name: '@deepseek-ai/dsh-host-directory-picker-auto'
+    # Workspace directory picker (host half). The in-app `-browse` backend lists
+    # and creates folders inside the web page, so it serves a browser reached
+    # through any tunnel — the only way a non-local client reaches this
+    # loopback-only server, since `--host 0.0.0.0` is refused. The `-native` OS
+    # chooser instead opens on the server's own display, which a remote browser
+    # cannot see. Paired with the `ui-directory-picker-browse` client row below;
+    # both are swapped together to pin a different backend.
+    #
+    # Overlay pins (both browse packages, and `-native`/`-auto`, stay bundle
+    # dependencies for exactly this): to pin the OS chooser for an operator at
+    # the host, disable both browse rows and insert the `-native` host+client
+    # pair (`directory-picker-native` + `ui-directory-picker-native`). To restore
+    # boot-time detection, disable both browse rows and insert only the host
+    # `directory-picker-auto` row — it samples the boot-time bind host, SSH
+    # markers, platform, and display, then mounts the chosen host backend and its
+    # client surface itself.
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'
 
     # Read-only projection of current Loader entries for trusted client RPCs.
     - id: plugin-inventory
@@ -218,6 +231,13 @@
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
+
+    # Browser half of the `-browse` directory picker: the in-app Select Workspace
+    # Directory dialog that fills ui-workspace's directory-flow holes. Paired with
+    # the host `directory-picker-browse` row above; swap both together to pin a
+    # different backend.
+    - id: ui-directory-picker-browse
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
 
     # Input triggers: the '/' | '@' pipeline (ui-input-trigger), the command surface over
     # it (ui-commands), and the two reference sources (ui-skill / ui-subagent).
