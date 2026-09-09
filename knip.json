@@ -540,6 +540,16 @@
         "tests/**/*.ts"
       ]
     },
+    "packages/web/web-search-tavily": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
     "packages/workflow/workflow-worker-thread": {
       "entry": [
         "tests/**/*.spec.ts",
