@@ -1,0 +1,41 @@
+/* Inline Mermaid diagram surface. Colors come from the diagram's own SVG
+   `<style>` (mermaid's themed palette, selected light/dark in the loader);
+   this module owns only layout and the neutral frame, on repo `--dsw-*`
+   tokens. */
+
+.diagram {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+  padding: 16px;
+  overflow-x: auto;
+  background: var(--dsw-alias-markdown-code-block);
+  border-radius: 12px;
+}
+
+.diagram :where(svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Placeholder shown while mermaid loads and renders; a neutral pulsing frame
+   the diagram replaces. */
+.loading {
+  height: 120px;
+  margin: 16px 0;
+  background: var(--dsw-alias-markdown-code-block);
+  border-radius: 12px;
+  animation: dsh-mermaid-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dsh-mermaid-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* Shown above the source fallback when a diagram fails to parse or render. */
+.error {
+  margin: 16px 0 4px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, #b46a00);
+}
