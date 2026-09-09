@@ -10,9 +10,11 @@ Web 构建产物已有文档标题和 favicon，却没有可供浏览器发现�
 
 ## 决策
 
-Web 入口链接 `/manifest.webmanifest`，Vite 会将其从 `apps/web/public/` 复制到生产构建产物。manifest 将产品命名为 `DeepSeek Harness`，为安装后的浏览器界面提供简称 `DSH`，并把 `id`、`start_url` 和 `scope` 固定为 `/`。它请求 `display: "fullscreen"`，使支持这一模式的浏览器能够把可用显示区域交给安装后的编辑器式界面，同时不改变普通标签页；浏览器可以应用用户覆盖设置，或回退到其他显示模式。其图标条目复用 `/favicon.svg`，将它作为尺寸为 `any`、用途为 `any` 的 SVG。
+Web 入口链接 `/manifest.webmanifest`，Vite 会将其从 `apps/web/public/` 复制到生产构建产物。manifest 将产品命名为 `DeepSeek Harness`，为安装后的浏览器界面提供简称 `DSH`，并把 `id`、`start_url` 和 `scope` 固定为 `/`。它请求 `display: "fullscreen"`，使支持这一模式的浏览器能够把可用显示区域交给安装后的编辑器式界面，同时不改变普通标签页；浏览器可以应用用户覆盖设置，或回退到其他显示模式。其图标集在下文描述。
 
 这一选择沿用了 code-server 的全屏方案，但没有照搬其 `window-controls-overlay` 显示覆盖项。DSH 没有自定义标题栏，也没有围绕原生窗口控件安排布局，因此使用这类覆盖项会在未落实所需安全布局的情况下取代全屏模式。
+
+manifest 声明可缩放的 `/favicon.svg`（尺寸 `any`、用途 `any`），并搭配光栅的 `/icon-192.png` 和 `/icon-512.png`（用途 `any`）以及满幅的 `/icon-maskable-512.png`（用途 `maskable`）；[图标集笔记](2026-08-19-web-app-icon-set.md)拥有该标志与光栅流水线，在 iOS 主屏给出具体的光栅目标后加入。
 
 manifest 有意不包含 `lang`、`theme_color` 或 `background_color`。产品界面支持双语，并不由 manifest 中的单一语言定义；任一静态颜色值都可能与应用解析后的一套调色板不一致。因此，主题元数据仍放在安装 manifest 之外。
 
@@ -20,7 +22,7 @@ manifest 有意不包含 `lang`、`theme_color` 或 `background_color`。产品�
 
 ## 验证
 
-Web 构建产物测试解析输出的 manifest，并固定完整的元数据对象，包括面向用户显示的名称、简称、图标、根路径身份、启动边界和显示模式，同时验证生产构建的 `index.html` 仍保留该链接。`dsh-host-frontend-static` 的真实 Loader 组合测试提供一个 `.webmanifest` fixture（测试前置数据），并固定其 `application/manifest+json` 媒体类型。
+Web 构建产物测试解析输出的 manifest，并固定完整的元数据对象，包括面向用户显示的名称、简称、图标集、根路径身份、启动边界和显示模式，同时验证生产构建的 `index.html` 仍保留 manifest 链接和 `apple-touch-icon` 链接。`dsh-host-frontend-static` 的真实 Loader 组合测试提供一个 `.webmanifest` fixture（测试前置数据），并固定其 `application/manifest+json` 媒体类型。
 
 ## 曾考虑的替代方案
 
@@ -30,7 +32,7 @@ Web 构建产物测试解析输出的 manifest，并固定完整的元数据对�
 
 **选择一组静态背景色和主题色。** 不予采纳，因为应用会在运行时解析浅色和深色调色板，因此选择任一固定值，都是明知它与其中一种受支持状态不符。
 
-**立即交付光栅和可遮罩图标变体。** 在某个受支持的安装目标证明现有可缩放 favicon 无法满足其要求之前，不予采纳。新变体只是对 manifest 的增量扩展，并非公开当前身份的前提。
+**立即交付光栅和可遮罩图标变体。** 起初推迟，因为当时没有安装目标需要超出可缩放 favicon 的东西；iOS Safari 模糊的主屏书签后来提供了这一要求，于是[图标集笔记](2026-08-19-web-app-icon-set.md)交付了光栅和可遮罩变体，作为本替代方案所预期的对 manifest 的增量扩展。
 
 **只断言构建产物中的根路径字段和显示字段。** 不予采纳，因为产品名称、简称或图标被删除或更改，同样属于已交付安装体验的回归。任何 manifest 元数据发生变化时，测试都有意要求显式改动。
 

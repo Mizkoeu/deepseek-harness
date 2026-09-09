@@ -4,6 +4,17 @@ English | [中文](README.zh.md)
 
 The dsh browser-surface bundle. [`cordis.patch.yml`](cordis.patch.yml) rides over [`dsh-base`](../base/README.md): it sets the coding persona, inserts the Web host rows (webserver, API gateway, workspace, projection cache, storage) and the browser plugin roster, the always-on client-plugin reload chain ([`dsh-client-hmr`](../../client/hmr/README.md), idle until a rebuild watcher rewrites client bundles), and mounts this package's `web-runtime` glue plugin (config `{printUrl, surfaceContext, trustedHosts}`). That plugin resolves the built frontend dist through `@deepseek-ai/dsh-web-frontend`'s exports, samples bind-dependent LAN trust once, provides it as `webRuntime` to the browser-trust fence and client roster, mounts the [`frontend-static`](../../host/frontend-static/README.md) fallback owner, registers the harness-source and web-surface prompt sections plus the bash-visible `DSH_WEB_URL` runtime variable when `surfaceContext` is true, and prints the `dsh web:` URL line when `printUrl` is true, after its Loader tree settles so a sibling failure cannot announce a dead app. This bundle also owns the app command line: the ordinary `web-startup` provider ([`src/startup.ts`](src/startup.ts)) injects `ctx.cmdlineArgs` ([`dsh-cmdline`](../../boot/cmdline/README.md)), parses `--host`, `--port`, repeatable `--trusted-host`, and the app's `--help`, then provides `webStartup`. It rejects `--host 0.0.0.0` before publishing that service because the CLI intentionally does not support all-interfaces binding yet. Flag-configured rows inject the service and read it directly from lazy config, so nothing binds a port before argument resolution and `dsh --profile web --help` starts no server. [`dsh-headless`](../headless/README.md) is a sibling surface over the same base and does not mount this bundle.
 
+## Directory picker
+
+The bundle mounts the in-app `-browse` workspace directory picker by default — host `directory-picker-browse` plus client `ui-directory-picker-browse`. The in-page dialog lists and creates folders inside the browser, so it serves a client reached through any tunnel, which is the only way a non-local client reaches this loopback-only server (`--host 0.0.0.0` is refused). The native OS chooser opens on the server's own display, which a remote browser cannot see.
+
+`-native` and `-auto` stay bundle dependencies as overlay pins:
+
+- **OS chooser** (an operator sitting at the host): disable both browse rows and insert the `-native` host+client pair — `directory-picker-native` and `ui-directory-picker-native`.
+- **Boot-time detection**: disable both browse rows and insert only the host `directory-picker-auto` row. It samples the boot-time bind host, SSH markers, platform, and display, then mounts the chosen host backend and its client surface itself — so a single host row restores both faces.
+
+The host-independent guard for this default is [`tests/directory-picker.spec.ts`](tests/directory-picker.spec.ts), which composes the effective base+web rows and fails if `-auto` or `-native` is mounted.
+
 ## Model Experience
 
 ### Harness-source and Web-surface context
