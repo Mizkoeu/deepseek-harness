@@ -198,6 +198,9 @@ importers:
       '@deepseek-ai/dsh-launch-environment':
         specifier: workspace:^
         version: link:../../packages/util/launch-environment
+      '@deepseek-ai/dsh-llm-pi-ai':
+        specifier: workspace:^
+        version: link:../../packages/llm/llm-pi-ai
       '@deepseek-ai/dsh-mcp-client':
         specifier: workspace:^
         version: link:../../packages/mcp/mcp-client
@@ -2391,6 +2394,9 @@ importers:
       clsx:
         specifier: ^2.0.0
         version: 2.1.1
+      dompurify:
+        specifier: ^3.4.11
+        version: 3.4.11
       katex:
         specifier: ^0.16.47
         version: 0.16.47
@@ -2403,6 +2409,9 @@ importers:
       mdast-util-math:
         specifier: ^3.0.0
         version: 3.0.0
+      mermaid:
+        specifier: 11.16.0
+        version: 11.16.0
       micromark-core-commonmark:
         specifier: ^2.0.3
         version: 2.0.3
@@ -5307,12 +5316,18 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-atomic-write':
+        specifier: workspace:^
+        version: link:../../util/atomic-write
       '@deepseek-ai/dsh-attachment':
         specifier: workspace:^
         version: link:../../attachment/attachment
       '@deepseek-ai/dsh-credentials':
         specifier: workspace:^
         version: link:../../credentials/credentials
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
       '@deepseek-ai/dsh-invariants':
         specifier: workspace:^
         version: link:../../runtime-diagnostics/invariants
@@ -8195,6 +8210,25 @@ importers:
         specifier: workspace:^
         version: link:../web
 
+  packages/web/web-search-tavily:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-invariants':
+        specifier: workspace:^
+        version: link:../../runtime-diagnostics/invariants
+      '@deepseek-ai/dsh-launch-environment':
+        specifier: workspace:^
+        version: link:../../util/launch-environment
+      '@deepseek-ai/dsh-web':
+        specifier: workspace:^
+        version: link:../web
+
   packages/workflow/tool-ralph:
     dependencies:
       '@deepseek-ai/schemastery':
@@ -8699,6 +8733,9 @@ importers:
       '@deepseek-ai/dsh-web-search-perplexity':
         specifier: workspace:^
         version: link:../../packages/web/web-search-perplexity
+      '@deepseek-ai/dsh-web-search-tavily':
+        specifier: workspace:^
+        version: link:../../packages/web/web-search-tavily
       '@deepseek-ai/dsh-workflow':
         specifier: workspace:^
         version: link:../../packages/workflow/workflow
