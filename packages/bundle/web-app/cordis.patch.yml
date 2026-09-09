@@ -84,6 +84,11 @@
     - id: session-stats
       name: '@deepseek-ai/dsh-session-stats'
 
+    # Most recent turn/end outcome (the lastTurnOutcome projection key), read by
+    # the Home triage view to flag stalled sessions.
+    - id: session-last-turn-outcome
+      name: '@deepseek-ai/dsh-session-last-turn-outcome'
+
     # Workspace directory picker (host half). The in-app `-browse` backend lists
     # and creates folders inside the web page, so it serves a browser reached
     # through any tunnel — the only way a non-local client reaches this
@@ -195,6 +200,11 @@
 
     - id: ui-sidebar
       name: '@deepseek-ai/dsh-client-ui-sidebar'
+
+    # Cross-workspace attention-triage overlay (Home) in the frame-wide
+    # shell.overlay layer.
+    - id: ui-home
+      name: '@deepseek-ai/dsh-client-ui-home'
 
     - id: ui-settings
       name: '@deepseek-ai/dsh-client-ui-settings'
