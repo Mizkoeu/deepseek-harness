@@ -4,6 +4,17 @@
 
 dsh 浏览器表层组合包。[`cordis.patch.yml`](cordis.patch.yml) 叠加在 [`dsh-base`](../base/README.md) 之上：设置 coding persona，插入 Web 宿主行（webserver、API 网关、workspace、投影缓存、存储）、浏览器插件名录与始终挂载的客户端插件重载链（[`dsh-client-hmr`](../../client/hmr/README.md)，在重建 watcher 改写客户端 bundle 之前保持空闲），并挂载本包的 `web-runtime` 粘合插件（配置为 `{printUrl, surfaceContext, trustedHosts}`）。该插件通过 `@deepseek-ai/dsh-web-frontend` 的 exports 解析已构建的前端 dist，只采样一次依赖 bind 的 LAN 信任信息并将其作为 `webRuntime` 提供给浏览器信任栅栏和客户端名录，挂载 [`frontend-static`](../../host/frontend-static/README.md) 回退席位所有者，在 `surfaceContext` 为 true 时注册 Harness 源码与 Web 表层提示词段落，以及 bash 可见的 `DSH_WEB_URL` 运行时变量，并在 `printUrl` 为 true 时等自身的 Loader 配置树结算后再打印 `dsh web:` URL 行，避免兄弟行失败时公告一个已失效的应用。本组合包还持有应用命令行：普通 `web-startup` 提供方（[`src/startup.ts`](src/startup.ts)）注入 `ctx.cmdlineArgs`（[`dsh-cmdline`](../../boot/cmdline/README.md)），解析 `--host`、`--port`、可重复的 `--trusted-host` 以及应用自己的 `--help`，再提供 `webStartup`。它会在发布该服务前拒绝 `--host 0.0.0.0`，因为 CLI 目前有意不支持绑定所有网络接口。由 flag 配置的行会注入该服务，并在惰性配置中直接读取它，因此参数解析完成前不会有任何东西绑定端口，`dsh --profile web --help` 也不会启动服务器。[`dsh-headless`](../headless/README.md) 是同一 base 之上的同级表层，不挂载本组合包。
 
+## 目录选择器
+
+本组合包默认挂载应用内 `-browse` 工作区目录选择器——宿主端 `directory-picker-browse` 加客户端 `ui-directory-picker-browse`。页内对话框在浏览器内部列举并创建文件夹，因此它服务于经由任意隧道到达的客户端，而这正是非本地客户端到达这台 loopback-only 服务器的唯一方式（`--host 0.0.0.0` 被拒绝）。原生 OS 选择框会在服务器自己的显示屏上打开，远程浏览器无法看到。
+
+`-native` 与 `-auto` 作为 overlay pin 保留为 bundle 依赖：
+
+- **OS 选择框**（坐在宿主机旁的操作者）：禁用两条 browse 行，并插入 `-native` 的宿主+客户端配对——`directory-picker-native` 与 `ui-directory-picker-native`。
+- **启动期检测**：禁用两条 browse 行，仅插入宿主端 `directory-picker-auto` 一行。它采样启动期的绑定主机、SSH 标记、平台与显示屏，随后自行挂载所选的宿主后端及其客户端界面——因此单条宿主行即可恢复两侧。
+
+该默认值的宿主无关守卫是 [`tests/directory-picker.spec.ts`](tests/directory-picker.spec.ts)，它组合 base+web 的有效行，若挂载了 `-auto` 或 `-native` 便失败。
+
 ## 模型体验
 
 ### Harness 源码与 Web 表层上下文
