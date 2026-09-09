@@ -486,11 +486,10 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY || notReady.length > 0)('web smoke
       process.execPath,
       [
         '--import', tsxLoader, join(REPO_ROOT, 'apps/cli/src/bin.ts'), 'web',
-        // Launcher flags come first: the first token the launcher does not own
-        // starts the web app's own arguments.
-        // Pin the in-browser picker: the shipped `-auto` row would resolve to
-        // the native OS chooser on this bind, and no page can drive that.
-        '--patch', fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
+        // The shipped web bundle defaults to the in-browser `-browse` picker,
+        // which a Playwright page can drive; the native OS chooser opens on the
+        // host display no page can reach. This real-host smoke runs the shipped
+        // default, so it passes no picker overlay.
         '--port', String(port),
       ],
       {
