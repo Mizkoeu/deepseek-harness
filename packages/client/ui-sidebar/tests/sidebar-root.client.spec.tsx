@@ -116,4 +116,9 @@ describe('SidebarRoot shell', () => {
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
   })
+
+  it('marks an owner-narrowed collapsed surface as the compact phone toggle', () => {
+    mountShell({ collapsed: true, width: 44 })
+    expect(document.querySelector('[data-compact="true"]')).toBeTruthy()
+  })
 })

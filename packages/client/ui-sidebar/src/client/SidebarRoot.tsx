@@ -28,6 +28,9 @@ import css from './SidebarRoot.module.css'
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
 
+/** Ordinary collapsed rail width; a smaller owner width selects the floating phone toggle. */
+const STANDARD_RAIL_WIDTH = 56
+
 /**
  * How long the column's scrollbars stay drawn after the pointer leaves it.
  * The bar is a pointer affordance here, and hiding it on the leave event
@@ -58,6 +61,7 @@ export function SidebarRoot({
     return () => { window.clearTimeout(timer) }
   }, [collapsed])
   const wide = !collapsed || !settled
+  const compact = collapsed && width < STANDARD_RAIL_WIDTH
 
   // Freeze the content at its expanded width while it fades out (collapsed
   // && wide): the sliding column then clips it instead of reflowing it. The
@@ -116,6 +120,7 @@ export function SidebarRoot({
   return (
     <div
       ref={column}
+      data-compact={compact || undefined}
       className={clsx(
         css.root, !wide && css.collapsed, !wide && everWide.current && css.railIn,
         collapsed && wide && css.fading, !pointerInside && css.quietBars,

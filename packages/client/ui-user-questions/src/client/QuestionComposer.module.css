@@ -399,6 +399,28 @@
   }
 }
 
+@media (max-width: 559px) {
+  .footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 8px;
+  }
+
+  .feedback {
+    text-align: left;
+  }
+
+  .footerActions {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .footerActions > button {
+    flex: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .option,
   .customRow {

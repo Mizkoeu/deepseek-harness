@@ -48,7 +48,8 @@ describe('web e2e: plan review takeover round trip', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
-    browser = await chromium.launch()
+    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
     // English page: the decision copy is the surface under test, and the
     // golden pins one language.
     page = await newEnglishPage(browser)
@@ -92,6 +93,33 @@ describe('web e2e: plan review takeover round trip', () => {
       await compareOrRefreshGolden(REVIEW_EXPECTED, snapshot, MODE)
       const sidebar = await captureStableAria(page, '[role="treeitem"][aria-selected="true"]', scaffold.workspaceCwd)
       await compareOrRefreshGolden(SIDEBAR_EXPECTED, sidebar, MODE)
+
+      const original = page.viewportSize() ?? { width: 1680, height: 1000 }
+      await page.setViewportSize({ width: 390, height: 844 })
+      const shell = page.locator('[data-sidebar-overlay]')
+      await expect.poll(async () => Math.round(
+        (await shell.locator('[class*="centerCol"]').boundingBox())?.width ?? 0,
+      )).toBe(390)
+      const mobile = await card.evaluate((root) => {
+        const panel = root.firstElementChild as HTMLElement | null
+        const panelBox = panel?.getBoundingClientRect()
+        const buttons = [...root.querySelectorAll<HTMLElement>('button')]
+          .map(button => button.getBoundingClientRect())
+        return {
+          panelWidth: Math.round(panelBox?.width ?? 0),
+          buttonsInside: panelBox !== undefined
+            && buttons.every(box => box.left >= panelBox.left && box.right <= panelBox.right),
+          documentWidth: document.documentElement.scrollWidth,
+          viewportWidth: window.innerWidth,
+        }
+      })
+      expect(mobile).toEqual({
+        panelWidth: 334,
+        buttonsInside: true,
+        documentWidth: 390,
+        viewportWidth: 390,
+      })
+      await page.setViewportSize(original)
     }
 
     await card.getByRole('button', { name: 'Approve' }).click()

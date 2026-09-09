@@ -32,6 +32,7 @@ const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
 // The scenario's one golden: the waiting panel. Everything the answered state
 // proves is asserted directly — see the world-state block at the end.
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
+const MOBILE_EXPECTED = join(SNAPSHOT_DIR, 'mobile.expected.md')
 const MODE = webSnapshotMode()
 
 // Irreducible payload: the command has to be long enough to pass the card's
@@ -56,7 +57,8 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
-    browser = await chromium.launch()
+    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
@@ -88,6 +90,79 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
     expect(composerCap).toBeGreaterThan(0)
     await input.fill('')
 
+    // Portrait phone: the collapsed navigation is a floating toggle, opening
+    // it overlays the full-width conversation, and the composer's primary
+    // action moves to a second toolbar row instead of clipping off the card.
+    await page.setViewportSize({ width: 390, height: 844 })
+    const shell = page.locator('[data-sidebar-overlay]')
+    await shell.waitFor({ timeout: 10_000 })
+    await expect.poll(async () => shell.evaluate((root) => {
+      const sidebar = root.firstElementChild as HTMLElement | null
+      const center = root.querySelector<HTMLElement>('[class*="centerCol"]')
+      return [
+        Math.round(sidebar?.getBoundingClientRect().width ?? 0),
+        Math.round(center?.getBoundingClientRect().width ?? 0),
+      ]
+    })).toEqual([44, 390])
+    const collapsedShell = await shell.evaluate((root) => {
+      const sidebar = root.firstElementChild as HTMLElement | null
+      const center = root.querySelector<HTMLElement>('[class*="centerCol"]')
+      const sidebarBox = sidebar?.getBoundingClientRect()
+      const centerBox = center?.getBoundingClientRect()
+      return {
+        sidebarWidth: Math.round(sidebarBox?.width ?? 0),
+        sidebarHeight: Math.round(sidebarBox?.height ?? 0),
+        centerWidth: Math.round(centerBox?.width ?? 0),
+        centerLeft: Math.round(centerBox?.left ?? -1),
+        documentWidth: document.documentElement.scrollWidth,
+      }
+    })
+    expect(collapsedShell).toEqual({
+      sidebarWidth: 44,
+      sidebarHeight: 52,
+      centerWidth: 390,
+      centerLeft: 0,
+      documentWidth: 390,
+    })
+
+    await page.getByRole('button', { name: 'Open sidebar' }).click()
+    await expect.poll(async () => shell.locator(':scope > *').first().evaluate(
+      element => Number.parseFloat((element as HTMLElement).style.width),
+    ))
+      .toBe(280)
+    expect(Math.round((await shell.locator('[class*="centerCol"]').boundingBox())?.width ?? 0)).toBe(390)
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+    await expect.poll(() => shell.getAttribute('data-sidebar-collapsed')).toBe('true')
+    await page.getByRole('button', { name: 'Open sidebar' }).waitFor({ state: 'visible' })
+
+    const composerCard = page.locator('[data-composer-card]').first()
+    const access = page.locator('[aria-label^="Access mode"]').first()
+    const send = page.getByRole('button', { name: 'Send message' })
+    const composerGeometry = await Promise.all([
+      composerCard.boundingBox(), access.boundingBox(), send.boundingBox(),
+    ])
+    const [composerBox, accessBox, sendBox] = composerGeometry
+    expect(composerBox).not.toBeNull()
+    expect(accessBox).not.toBeNull()
+    expect(sendBox).not.toBeNull()
+    if (composerBox === null || accessBox === null || sendBox === null) throw new Error('composer geometry missing')
+    expect(composerBox.width).toBeGreaterThanOrEqual(350)
+    expect(accessBox.x).toBeGreaterThanOrEqual(composerBox.x)
+    expect(sendBox.x + sendBox.width).toBeLessThanOrEqual(composerBox.x + composerBox.width)
+    expect(sendBox.y).toBeGreaterThan(accessBox.y)
+    const mobileSnapshot = [
+      '# Mobile shell geometry',
+      '',
+      '- Viewport: 390 x 844',
+      `- Collapsed sidebar toggle: ${String(collapsedShell.sidebarWidth)} x ${String(collapsedShell.sidebarHeight)}`,
+      `- Conversation width: ${String(collapsedShell.centerWidth)}`,
+      `- Composer width: ${String(Math.round(composerBox.width))}`,
+      `- Primary action on second row: ${String(sendBox.y > accessBox.y)}`,
+      `- Horizontal page overflow: ${String(collapsedShell.documentWidth > 390)}`,
+      '',
+    ].join('\n')
+    if (MODE !== 'record') await compareOrRefreshGolden(MOBILE_EXPECTED, mobileSnapshot, MODE)
+
     // Read-only: the mode whose denial the model escalates from. Switched
     // through the shipped access-mode chip, not a test-only override.
     await page.locator('[aria-label^="Access mode"]').click()
@@ -118,8 +193,12 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
       // The uncapped-card hazard the header names, measured at the lane
       // baseline and at a short viewport, on the live panel.
       const original = page.viewportSize() ?? { width: 1680, height: 1000 }
-      for (const height of [1000, 700]) {
-        await page.setViewportSize({ width: 900, height })
+      for (const viewport of [
+        { width: 900, height: 1000 },
+        { width: 900, height: 700 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(viewport)
         const geometry = await panel.evaluate((root) => {
           const region = root.querySelector<HTMLElement>('[data-approval-scroll]')
           const card = region?.parentElement ?? null
@@ -135,7 +214,13 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
             cardBottom: card === null ? Number.NaN : card.getBoundingClientRect().bottom,
             actionsTop: Math.min(...rows.map(rect => rect.top)),
             actionsBottom: Math.max(...rows.map(rect => rect.bottom)),
-            viewport: window.innerHeight,
+            actionsLeft: Math.min(...rows.map(rect => rect.left)),
+            actionsRight: Math.max(...rows.map(rect => rect.right)),
+            cardLeft: card === null ? Number.NaN : card.getBoundingClientRect().left,
+            cardRight: card === null ? Number.NaN : card.getBoundingClientRect().right,
+            viewportHeight: window.innerHeight,
+            viewportWidth: window.innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
           }
         })
         expect(geometry.buttons).toBe(2)
@@ -146,8 +231,13 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
         // Both buttons stay inside the card AND inside the viewport — the
         // answerable state the cap exists to guarantee.
         expect(geometry.actionsTop).toBeGreaterThan(0)
-        expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.viewport)
+        expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.viewportHeight)
         expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.cardBottom)
+        expect(geometry.actionsLeft).toBeGreaterThanOrEqual(geometry.cardLeft)
+        expect(geometry.actionsRight).toBeLessThanOrEqual(geometry.cardRight)
+        expect(geometry.cardLeft).toBeGreaterThanOrEqual(0)
+        expect(geometry.cardRight).toBeLessThanOrEqual(geometry.viewportWidth)
+        expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth)
       }
       await page.setViewportSize(original)
     }
@@ -177,6 +267,6 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
   }, 300_000)
 
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['session.jsonl', 'ui.expected.md'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['mobile.expected.md', 'session.jsonl', 'ui.expected.md'])
   })
 })

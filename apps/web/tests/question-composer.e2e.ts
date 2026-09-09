@@ -25,6 +25,7 @@ const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
 const SIDEBAR_EXPECTED = join(SNAPSHOT_DIR, 'sidebar.expected.md')
 const COMPOSED_EXPECTED = join(SNAPSHOT_DIR, 'composed.expected.md')
+const MOBILE_EXPECTED = join(SNAPSHOT_DIR, 'mobile.expected.md')
 // Final golden: the answered transcript — the question resolved into its tool
 // round trip and the final reply, the state the composer goldens cannot see.
 const ANSWERED_EXPECTED = join(SNAPSHOT_DIR, 'answered.expected.md')
@@ -45,7 +46,8 @@ describe('web e2e: resident question composer round trip', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
-    browser = await chromium.launch()
+    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
     await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
@@ -130,6 +132,50 @@ describe('web e2e: resident question composer round trip', () => {
         expect(squeeze.spill).toBeLessThan(0.6)
       }
       await page.setViewportSize(original)
+
+      await page.setViewportSize({ width: 390, height: 844 })
+      const shell = page.locator('[data-sidebar-overlay]')
+      await expect.poll(async () => Math.round(
+        (await shell.locator('[class*="centerCol"]').boundingBox())?.width ?? 0,
+      )).toBe(390)
+      const mobile = await composer.evaluate((root) => {
+        const card = root.querySelector<HTMLElement>('section')
+        const footer = root.querySelector<HTMLElement>('footer')
+        const pager = footer?.children[0]?.getBoundingClientRect()
+        const actions = footer?.children[2]?.getBoundingClientRect()
+        const buttons = [...root.querySelectorAll<HTMLElement>('button')]
+          .map(button => button.getBoundingClientRect())
+        const cardBox = card?.getBoundingClientRect()
+        return {
+          cardWidth: Math.round(cardBox?.width ?? 0),
+          buttonsInside: cardBox !== undefined
+            && buttons.every(box => box.left >= cardBox.left && box.right <= cardBox.right),
+          actionsOnSecondRow: pager !== undefined && actions !== undefined && actions.top > pager.top,
+          documentWidth: document.documentElement.scrollWidth,
+          viewportWidth: window.innerWidth,
+        }
+      })
+      expect(mobile).toEqual({
+        cardWidth: 334,
+        buttonsInside: true,
+        actionsOnSecondRow: true,
+        documentWidth: 390,
+        viewportWidth: 390,
+      })
+      await compareOrRefreshGolden(MOBILE_EXPECTED, [
+        '# Mobile question geometry',
+        '',
+        `- Viewport: ${String(mobile.viewportWidth)} x 844`,
+        `- Card width: ${String(mobile.cardWidth)}`,
+        `- Buttons inside card: ${String(mobile.buttonsInside)}`,
+        `- Decision actions on second row: ${String(mobile.actionsOnSecondRow)}`,
+        `- Horizontal page overflow: ${String(mobile.documentWidth > mobile.viewportWidth)}`,
+        '',
+      ].join('\n'), MODE)
+      await page.setViewportSize(original)
+      await page.locator('[data-conversation-scroll]').evaluate((scrollport) => {
+        scrollport.scrollTop = scrollport.scrollHeight
+      })
     }
 
     const blue = composer.getByRole('checkbox', { name: 'Blue' })
@@ -179,6 +225,7 @@ describe('web e2e: resident question composer round trip', () => {
       'sidebar.expected.md',
       'composed.expected.md',
       'answered.expected.md',
+      'mobile.expected.md',
     ])
   })
 })
