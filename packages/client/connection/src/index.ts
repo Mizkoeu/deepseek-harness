@@ -67,20 +67,25 @@ export const Config: z<ConnectionConfig> = z.object({
 })
 
 /**
- * Methods gated to loopback even on a trusted-host deployment. Native dialogs
- * act on the host machine; the settings and credential domains mutate the
- * user's configuration and secret store, and READING them is equally
+ * Methods carrying more authority than an ordinary read, named explicitly here.
+ * Native dialogs act on the host machine; the settings and credential domains
+ * mutate the user's configuration and secret store, and READING them is equally
  * privileged — `settings.describe` returns every exposed namespace's
- * configuration and `credentials.describe` reports whether an arbitrary
- * environment-variable name is configured and where from, which is
- * reconnaissance no anonymous caller should have. `trustedHosts` is a
- * DNS-rebinding fence, explicitly not authentication, so the whole
- * configuration plane stays loopback-same-origin until a real authentication
- * layer exists. `llm.discoverModels` belongs to that plane on both counts: it
- * carries a draft credential, and it makes the HOST issue a GET to a URL the
- * caller chose and reports back the status or the parsed body — an anonymous
- * LAN caller would have a probe for whatever the host can reach and the
- * browser cannot.
+ * configuration and `credentials.describe` reports whether a named environment
+ * reference is configured and where it resolves from (its metadata, never the
+ * secret value), which is reconnaissance no untrusted caller should have.
+ * `llm.discoverModels` belongs to the same set on two counts: it carries a
+ * draft credential, and it makes the HOST issue a GET to a URL the caller chose
+ * and reports back the status or the parsed body — a probe for whatever the
+ * host can reach and the browser cannot.
+ *
+ * These methods pass the same `trustedHosts` browser-trust fence as every other
+ * `/api` call, so on a deployment that declares trusted authorities a trusted
+ * remote device reaches them, not only loopback. `trustedHosts` is a
+ * DNS-rebinding fence, explicitly not authentication, so every allowed device
+ * shares this authority; the personal trusted-device deployment this admits is
+ * scoped in the trusted-remote privileged-actions
+ * [Agent Note](../../../.agents/notes/implemented/architecture/2026-08-19-trusted-remote-privileged-actions.md).
  *
  * The model catalog (`llm.providers`, `llm.models`) is deliberately NOT here:
  * it carries provider ids, display names, and model lists — no endpoints,
@@ -120,10 +125,10 @@ const PRIVILEGED_METHODS = new Set([
 
 /**
  * Mounts the API gateway under the browser transport prefix. Every request on
- * the prefix passes the browser-trust fence first (DNS-rebinding and
- * cross-site defense — [api-request-trust](./api-request-trust.ts));
- * privileged methods additionally pass it with an empty trust list, which
- * pins them to loopback.
+ * the prefix passes the browser-trust fence first (DNS-rebinding and cross-site
+ * defense — [api-request-trust](./api-request-trust.ts)); privileged methods
+ * pass that same fence against the configured `trustedHosts` allowlist, so a
+ * trusted authority reaches them and any untrusted or rebound Host is refused.
  * @param ctx - Host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
  */
@@ -142,9 +147,13 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
       const method = pathname.startsWith(`${API_PATH}/`)
         ? pathname.slice(API_PATH.length + 1)
         : undefined
+      // Privileged methods honor the same trustedHosts allowlist as every other
+      // /api call: a trusted authority reaches the native folder picker,
+      // settings, credentials, and model discovery, while an untrusted or
+      // rebound Host is refused here before dispatch.
       if (method !== undefined
         && PRIVILEGED_METHODS.has(method)
-        && !isTrustedApiRequest(request, [])) {
+        && !isTrustedApiRequest(request, trustedHosts)) {
         return new Response('forbidden', { status: 403 })
       }
       if (request.method === 'GET' && (pathname === MUX_EVENTS_PATH || pathname === HOST_EVENTS_PATH)) {
