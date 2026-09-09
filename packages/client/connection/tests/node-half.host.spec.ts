@@ -161,34 +161,55 @@ describe('connection node half', () => {
     await dispose()
   })
 
-  it('pins privileged methods to loopback even for a declared trusted authority', async () => {
+  // The privileged set: native dialogs, the whole settings/credential
+  // configuration plane (reads included — `settings.describe` returns exposed
+  // namespace configuration and `credentials.describe` reports whether a named
+  // reference is configured and where it resolves from, not its value), the
+  // method that makes the host fetch a caller-chosen URL, and the agent-preset
+  // authoring methods.
+  const PRIVILEGED = [
+    'host.pickDirectory', 'host.openPath',
+    'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
+    'credentials.describe', 'credentials.set', 'credentials.unset',
+    'llm.discoverModels',
+    'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
+  ]
+
+  it('admits privileged methods from a declared trusted authority', async () => {
     const { routes, dispose } = await mounted({ trustedHosts: ['harness.example'] })
-    // The privileged set: native dialogs plus the whole settings/credential
-    // configuration plane, reads included, plus the one method that makes the
-    // host fetch a caller-chosen URL. The same declared authority reaches
-    // ordinary reads (carrier-level 404 from the empty proxy proves the fence
-    // passed), but each privileged method stays loopback-only and 403s.
-    for (const method of [
-      'host.pickDirectory', 'host.openPath',
-      'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
-      'credentials.describe', 'credentials.set', 'credentials.unset',
-      'llm.discoverModels',
-      // A composition names the plugins a session runs: reading one is
-      // reconnaissance, and copy/remove/openDocument manage the roster and
-      // drive the host desktop.
-      'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
-    ]) {
-      const denied = fakeResponse()
+    // Privileged methods pass the same trust fence as every other /api call:
+    // a declared authority reaches them (carrier-level 404 from the empty proxy
+    // proves the fence passed and the bridge ran), not only loopback.
+    for (const method of PRIVILEGED) {
+      const admitted = fakeResponse()
       await routes[0]!.handler(
         fakeRequest({ host: 'harness.example' }, `${API_PATH}/${method}`),
-        denied.response,
+        admitted.response,
       )
-      expect(denied.state.status).toBe(403)
-      expect(denied.state.body).toBe('forbidden')
+      expect([method, admitted.state.status]).toEqual([method, 404])
     }
-    const read = fakeResponse()
-    await routes[0]!.handler(fakeRequest({ host: 'harness.example' }), read.response)
-    expect(read.state.status).not.toBe(403)
+    await dispose()
+  })
+
+  it('refuses privileged methods from an untrusted Host, Origin, or cross-site marker', async () => {
+    const { routes, dispose } = await mounted({ trustedHosts: ['harness.example'] })
+    // The admit above is scoped to trusted authorities. An undeclared Host is a
+    // rebound-name or foreign caller; a mismatched Origin or an explicit
+    // cross-site marker on the declared Host is a confused-deputy browser. Each
+    // is refused before dispatch, so the relaxation is not a universal opening.
+    const untrusted: Record<string, string>[] = [
+      { host: 'evil.example' },
+      { host: 'harness.example', origin: 'http://evil.example' },
+      { host: 'harness.example', 'sec-fetch-site': 'cross-site' },
+    ]
+    for (const method of PRIVILEGED) {
+      for (const headers of untrusted) {
+        const denied = fakeResponse()
+        await routes[0]!.handler(fakeRequest(headers, `${API_PATH}/${method}`), denied.response)
+        expect([method, headers, denied.state.status]).toEqual([method, headers, 403])
+        expect(denied.state.body).toBe('forbidden')
+      }
+    }
     await dispose()
   })
 
@@ -453,35 +474,35 @@ describe('connection node half over a real HTTP server', () => {
     })
   }
 
-  it('answers a declared LAN authority with 403 on every configuration method, over real HTTP', async () => {
-    // The fence's input is a real IncomingMessage parsed by Node from the
-    // wire, not a hand-assembled object: the Host header a LAN browser sends
-    // is exactly what decides loopback-only here, so the boundary is asserted
-    // against the parse the server actually performs.
+  it('admits a declared LAN authority to every configuration method, and refuses an untrusted Host, over real HTTP', async () => {
+    // The fence's input is a real IncomingMessage parsed by Node from the wire,
+    // not a hand-assembled object: the Host header a LAN browser sends is what
+    // decides trust, so the boundary is asserted against the parse the server
+    // actually performs.
     const { routes, dispose } = await mounted({ trustedHosts: ['harness.example'] })
     const { port, close } = await serve(routes)
     try {
-      // Reads are as privileged as writes: describe returns the exposed
-      // configuration, and credentials.describe probes arbitrary env-var names.
+      // Reads are as privileged as writes: `settings.describe` returns exposed
+      // namespace configuration and `credentials.describe` reports whether a
+      // named reference is configured and where from (not its value). The
+      // declared authority reaches all of them (404 is the empty proxy's carrier
+      // answer — the fence passed), and an undeclared Host is refused (403), so
+      // the admit is scoped to trusted authorities.
       for (const method of [
         'settings.describe', 'settings.openDocument', 'settings.update', 'settings.replace', 'settings.mutate',
         'credentials.describe', 'credentials.set', 'credentials.unset',
         'host.pickDirectory', 'host.openPath',
-        // Carries a draft credential and turns the host into a fetcher for a
-        // URL the caller picked: an anonymous LAN caller must not reach it.
         'llm.discoverModels',
         'agentPreset.read', 'agentPreset.copy', 'agentPreset.openDocument', 'agentPreset.remove',
       ]) {
-        expect([method, await call(port, method, 'harness.example')]).toEqual([method, 403])
+        expect([method, await call(port, method, 'harness.example')]).toEqual([method, 404])
+        expect([method, await call(port, method, 'evil.example')]).toEqual([method, 403])
       }
-      // The model catalog stays reachable for the same authority: a LAN
-      // client's model picker needs it, and it carries no key or endpoint
-      // state (404 is the empty proxy's carrier answer — the fence passed).
-      // `agentPreset.list` joins the model catalog for the same reason: ids and
-      // trust only, and a LAN client's preset picker needs it. `select` is
-      // reachable too: `session.create` already takes an `agentPreset`, and the
-      // deployment's own default already carries bash, so pinning the switch
-      // would be a fence beside an open gate.
+      // The model catalog carries no key or endpoint state; a LAN client's model
+      // picker needs it. `agentPreset.list` joins it (ids and trust only), and
+      // `select` is reachable because `session.create` already takes an
+      // `agentPreset` over a default that already carries bash, so pinning the
+      // switch would be a fence beside an open gate.
       for (const method of ['llm.providers', 'llm.models', 'agentPreset.list', 'agentPreset.select']) {
         expect([method, await call(port, method, 'harness.example')]).toEqual([method, 404])
       }

@@ -29,3 +29,4 @@ Web GUI 宿主以纯 HTTP 提供 `/api`（默认 `127.0.0.1:3080`，支持 `--ho
 - 非回环部署的对外服务 authority 必须列入信任范围，否则请求会被拒绝。dsh CLI 通过把本机 LAN IP 字面量推导进 connection 行（不带端口的条目——IP 字面量 Host 不可能是被重绑的域名，且绑定端口可能由操作系统分配）来保住它公布的 `--host 0.0.0.0` LAN URL，并提供 `dsh web --trusted-host` 声明具名权威；并非由 CLI 启动的组合自行声明 `trustedHosts`。非浏览器自动化走同一道栅栏：回环地址、推导的 LAN IP 或已声明的权威可通过；未声明的 DNS 别名会被拒绝。
 - 客户端必须给 POST 体标注 `application/json`（我们自己的客户端一向如此；裸 fetch 测试补上了该头）。
 - 无认证 `0.0.0.0` 部署的「可信网络」假设从隐含变为成文。
+- 特权的配置／凭据／原生操作方法走同一道栅栏，以 `trustedHosts` 判定，因此已声明的可信授权可以到达它们；这所允许的个人可信设备部署的适用范围见 [trusted-remote 特权操作](2026-08-19-trusted-remote-privileged-actions.md)。
