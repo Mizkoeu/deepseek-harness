@@ -16,4 +16,4 @@ Web 壳的 SPA dist 服务器：一个函数插件（配置为 `{distIndex}`）�
 
 ## 已知限制与延期工作
 
-- **初始 MIME 表很精简**：它覆盖 Vite 输出的资产集合及实际交付的 PWA manifest；其他扩展名在相应资产类别实际发布前都会回退到 `application/octet-stream`。
+- **初始 MIME 表很精简**：它覆盖 Vite 输出的资产集合（JS/CSS/SVG/PNG/JSON/source map）及实际交付的 PWA manifest；其他扩展名在相应资产类别实际发布前都会回退到 `application/octet-stream`。
