@@ -16,4 +16,4 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- **The starter MIME table is minimal** — it covers the Vite-emitted asset set plus the shipped PWA manifest; other extensions fall back to `application/octet-stream` until an asset class actually ships.
+- **The starter MIME table is minimal** — it covers the Vite-emitted asset set (JS/CSS/SVG/PNG/JSON/source maps) plus the shipped PWA manifest; other extensions fall back to `application/octet-stream` until an asset class actually ships.
