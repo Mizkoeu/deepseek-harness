@@ -11,6 +11,7 @@
 | `@deepseek-ai/dsh-web`（本包） | Service Definition：服务、提供方注册表、选择策略、请求／结果词汇、`WebError` 分类体系 |
 | `@deepseek-ai/dsh-web-search-exa` | 搜索提供方：Exa |
 | `@deepseek-ai/dsh-web-search-perplexity` | 搜索提供方：Perplexity |
+| `@deepseek-ai/dsh-web-search-tavily` | 搜索提供方：Tavily |
 | `@deepseek-ai/dsh-web-fetch-http` | 抓取提供方：匿名公共 HTTP(S) |
 | `@deepseek-ai/dsh-tool-web` | Consumer：面向模型的 `web_search`／`web_fetch` 工具 schema，构建于 `ctx.web` 之上 |
 
