@@ -15,7 +15,9 @@ import { act, cleanup, render } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { AppFrame } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
 import type { AppFrameProps } from '@deepseek-ai/dsh-client-ui-layout/src/client/AppFrame.tsx'
-import { SIDEBAR_COLLAPSED } from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
+import {
+  SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MOBILE_TOGGLE_WIDTH,
+} from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
 import { createLayoutStore } from '@deepseek-ai/dsh-client-ui-layout/src/client/stores.ts'
 import type {
   SessionId, SessionListState, WorkspaceListState,
@@ -325,6 +327,35 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
     frameWidth = 1920
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     expect(tracks(frame)).toEqual([400, 0])
+  })
+})
+
+describe('AppFrame — phone sidebar overlay', () => {
+  it('leaves the conversation track full width behind a compact floating toggle', () => {
+    frameWidth = 390
+    const { frame, slotCalls } = mountFrame()
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-sidebar-overlay')).toBe(true)
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+    expect((frame.firstElementChild as HTMLElement).style.width).toBe(`${SIDEBAR_MOBILE_TOGGLE_WIDTH}px`)
+    expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props).toEqual({
+      collapsed: true,
+      width: SIDEBAR_MOBILE_TOGGLE_WIDTH,
+    })
+  })
+
+  it('opens over the conversation without adding a resize handle or shrinking its track', () => {
+    frameWidth = 390
+    const { frame, instance, slotCalls } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
+    expect((frame.firstElementChild as HTMLElement).style.width).toBe(`${SIDEBAR_DEFAULT}px`)
+    expect(slotCalls.filter(c => c.key === 'sidebar').at(-1)!.props).toEqual({
+      collapsed: false,
+      width: SIDEBAR_DEFAULT,
+    })
+    expect(frame.querySelectorAll('[class*="handle"]')).toHaveLength(0)
   })
 })
 

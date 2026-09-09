@@ -62,6 +62,14 @@
   transform: rotate(180deg);
 }
 
+/* The composer gives this group its own row on phone-width cards. Dropping
+   the secondary effort copy keeps the model and primary action on one line. */
+@container (max-width: 460px) {
+  .triggerEffort {
+    display: none;
+  }
+}
+
 .menu {
   position: absolute;
   right: 0;

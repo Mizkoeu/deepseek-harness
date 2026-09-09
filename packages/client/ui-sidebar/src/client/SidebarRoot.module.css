@@ -271,6 +271,28 @@
   width: auto;
 }
 
+/* The phone frame removes the sidebar from the grid. Its settled collapsed
+   state keeps only the existing toggle as a 44px-wide floating target; the
+   full browser and footer return in the same tree when the overlay opens. */
+.root.collapsed[data-compact] {
+  height: 52px;
+  padding: 8px 4px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-left: none;
+  border-radius: 0 14px 14px 0;
+  box-shadow: var(--dsw-shadow-lv2);
+}
+
+.collapsed[data-compact] .logoRow {
+  margin-bottom: 0;
+}
+
+.collapsed[data-compact] .newSession,
+.collapsed[data-compact] .regionArea,
+.collapsed[data-compact] .footArea {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wide,
   .fading > *,

@@ -79,6 +79,9 @@
      (see ui-theme styles/scrollbar.css for the rebinding contract). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  /* Lets the row itself respond to the card width while it remains the
+     anonymous container consumed by cross-package trigger styles. */
+  container-type: inline-size;
 }
 
 /* No-workspace trigger state: dashed l4 stroke marks the card as a pick-a-
@@ -321,6 +324,31 @@
 .trailing {
   flex: none;
   gap: 12px;
+}
+
+/* Phone-width card: controls keep their natural first-row grouping, while
+   model/context/send take a full second row so the primary action cannot be
+   clipped by longer mode or model labels. */
+@container (max-width: 460px) {
+  .row {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+
+  .tools {
+    flex: 1 1 auto;
+    gap: 10px;
+  }
+
+  .modes,
+  .trailing {
+    gap: 8px;
+  }
+
+  .trailing {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
 }
 
 /* Attach circle (figma + control): 28px, selector fill, primary glyph. */

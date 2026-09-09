@@ -23,6 +23,7 @@
 }
 
 .sidebarCol {
+  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
@@ -30,6 +31,7 @@
 }
 
 .centerCol {
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -37,6 +39,7 @@
 }
 
 .detailsCol {
+  grid-column: 3;
   min-width: 0;
   overflow: hidden;
   border-left: 1px solid var(--dsw-alias-border-l2);
@@ -46,6 +49,25 @@
    a 1px seam. The collapsed sidebar instead retains a bordered compact rail. */
 .frame[data-details-collapsed] .detailsCol {
   border-left: none;
+}
+
+/* Phone layout: the navigation keeps its mounted toggle but leaves the grid,
+   then widens over the full-width conversation when opened. */
+.frame[data-sidebar-overlay] .sidebarCol {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 3;
+  box-shadow: var(--dsw-shadow-lv2);
+  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-sidebar-overlay][data-sidebar-collapsed] .sidebarCol {
+  bottom: auto;
+  height: 52px;
+  overflow: visible;
+  border-right: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
@@ -71,6 +93,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .handle {
+    transition: none;
+  }
+
+  .frame[data-sidebar-overlay] .sidebarCol {
     transition: none;
   }
 }

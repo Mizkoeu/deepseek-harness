@@ -363,3 +363,31 @@
 .root[data-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+@media (max-width: 559px) {
+  .root {
+    --dsh-composer-side-clearance: 8px;
+  }
+
+  /* The collapsed navigation toggle floats over only the header corner; the
+     title row clears it while transcript and composer retain full width. */
+  .header {
+    padding-right: 12px;
+    padding-left: 52px;
+  }
+
+  .headerUtilities {
+    margin-left: 8px;
+  }
+
+  .tabs {
+    gap: 24px;
+    overflow-x: auto;
+    padding-left: 0;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+}
