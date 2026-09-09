@@ -318,6 +318,7 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     const help = await runBuiltBin(['--help'])
     expect(help.code).toBe(0)
     expect(help.stdout).toContain('dsh --profile web')
+    expect(help.stdout).toContain('dsh auth login github-copilot')
     expect(help.stdout).toContain('dsh plugin --profile')
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
     for (const removed of [['tui'], ['--config', 'x.yml'], ['-p', 'task'], ['run', 'task']]) {
@@ -325,6 +326,18 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
       expect(result.code).toBe(1)
     }
   }, 30_000)
+
+  it('reports provider auth status without booting a profile', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-auth-status-'))
+    try {
+      const result = await runBuiltBin(['auth', 'status', 'github-copilot'], { DSH_HOME: home })
+      expect(result.code).toBe(0)
+      expect(result.stderr).toBe('')
+      expect(result.stdout).toBe('GitHub Copilot: not signed in.')
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
 
   it('routes help and usage errors without activating startup-dependent rows', async () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-app-help-'))

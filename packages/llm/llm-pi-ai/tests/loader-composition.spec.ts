@@ -95,6 +95,7 @@ describe('llm-pi-ai real dormant composition', () => {
 
     // The shipped posture: the adapter exists, no route does.
     expect(ctx.llm.listProviders()).toEqual([])
+    expect(ctx.llm.listConfigurableProviders().map(provider => provider.provider)).toContain('openai-codex')
 
     // Exactly what the web Models page leaves on disk.
     await writeFile(settingsPath, [

@@ -18,6 +18,29 @@
 
 使用原生认证的提供方需要各自的原生凭据。Bedrock、Vertex、Azure 和 Codex 分别使用 AWS 凭据与区域、ADC 项目、`api-version` 和 OAuth；只填写 API 密钥字段无法完成配置。
 
+### GitHub Copilot 订阅
+
+先在终端登录一次：
+
+```sh
+dsh auth login github-copilot
+```
+
+打开输出的 GitHub URL，输入设备代码，并等待 `GitHub Copilot: signed in`。GitHub Enterprise 需要加上 `--enterprise-domain <domain>`。
+
+在**设置 → 模型**中选择**添加提供方 → GitHub Copilot**，不输入 API 密钥直接保存。无密钥的提供方 profile 会让 pi-ai 使用已存储的 OAuth 凭据，将其交换为短期 Copilot token，并在后续请求前刷新该 token。然后在模型选择器中选择该提供方的模型。
+
+可刷新记录单独存放在仅限所有者访问的 `$DSH_HOME/.pi-ai-credentials.json`，不与静态 API 密钥混放。以下命令可以在不暴露任何 token 的情况下检查或移除它：
+
+```sh
+dsh auth status github-copilot
+dsh auth logout github-copilot
+```
+
+仅限所有者的权限能防止其他 OS 用户读取凭据，不能防止以同一用户身份运行的工具。不要向不受信任的工具授予 `$DSH_HOME` 读取权限。
+
+不要给这个 OAuth profile 添加 `apiKeyEnv`。显式密钥会直接覆盖请求凭据，从而绕过已存储 GitHub token 的交换和刷新。
+
 ## 添加自定义提供方
 
 对于公司网关、自建服务器或已安装目录中不存在的提供方，选择**添加自定义提供方**。提供小写 Provider ID、基础 URL、API 协议、凭据和至少一个模型。
@@ -88,6 +111,7 @@ llm-pi-ai:
 ## 排错
 
 - **`MISSING_CREDENTIAL`**：通过模型页存储提供方密钥，或提供被引用的环境变量。
+- **GitHub Copilot 提示 `Provider is not configured`**：运行 `dsh auth login github-copilot`，然后将该提供方的 API 密钥字段留空，以便使用已存储的 OAuth 凭据。
 - **`UNKNOWN_MODEL`**：选择已配置的模型，或向自定义提供方添加缺失的模型。
 - **获取可用模型返回 401**：检查密钥。模型发现会调用 OpenAI 兼容的 `GET /models` 端点；对于不提供该端点的服务，请手动输入模型。
 - **图片在发送前被拒绝**：该模型未声明图片模态。请给自定义提供方的模型加上 `input: [text, image]`；DeepSeek 自身的 chat-completions 路由是纯文本的，且无法通过配置改变。

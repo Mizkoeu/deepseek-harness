@@ -13,10 +13,9 @@
  * way down: switching models mid-reply takes effect on the next step, never
  * inside the one in flight.
  *
- * Credentials stay outside that collection. The harness resolves a route's key
- * through its own seam and passes it as the request's `apiKey` option, which
- * pi-ai treats as the highest-priority auth override — so `Models` never holds
- * a credential store and the harness keeps its fail-loud reference semantics.
+ * Harness API keys stay outside that collection. The plugin resolves a named
+ * key and passes it as the request's highest-priority `apiKey` override; a
+ * keyless profile instead lets pi-ai resolve ambient or stored OAuth auth.
  *
  * @module dsh-llm-pi-ai/adapter
  */
@@ -24,6 +23,7 @@
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type {
   Api,
+  CredentialStore,
   Model,
   Models,
   ModelThinkingLevel,
@@ -61,7 +61,7 @@ interface PiAiSnapshot {
   models: Models
 }
 
-/** Constructor options for {@link PiAiAdapter}: the two resolution hooks the plugin owns. */
+/** Constructor options for {@link PiAiAdapter}. */
 export interface PiAiAdapterOptions {
   /** Current validated profiles by provider route; called once per operation. */
   profiles: () => ReadonlyMap<string, ResolvedPiAiProviderProfile>
@@ -71,9 +71,12 @@ export interface PiAiAdapterOptions {
    * pi-ai auth, which for an installed catalog route is its provider-native
    * ambient discovery; the plugin allows that only for a profile naming no
    * credential at all, because a named reference that misses throws `LlmError`
-   * `MISSING_CREDENTIAL` rather than falling back.
+   * `MISSING_CREDENTIAL` rather than falling back. Provider-native auth may
+   * resolve from ambient state or the injected structured credential store.
    */
   resolveApiKey: (provider: string, profile: ResolvedPiAiProviderProfile) => Promise<string | undefined>
+  /** Persistent provider credentials used when a request has no explicit Harness key. */
+  credentials?: CredentialStore
   /** Resolve the optional durable attachment service at request time. */
   resolveAttachments?: () => AttachmentStore | undefined
 }
@@ -199,7 +202,9 @@ export class PiAiAdapter extends LlmAdapter {
   private current(): PiAiSnapshot {
     const profiles = this.config.profiles()
     if (this.snapshot?.profiles === profiles) return this.snapshot
-    const models: MutableModels = createModels()
+    const models: MutableModels = createModels(
+      this.config.credentials === undefined ? {} : { credentials: this.config.credentials },
+    )
     for (const profile of profiles.values()) models.setProvider(profile.piProvider)
     this.snapshot = { profiles, models }
     return this.snapshot
