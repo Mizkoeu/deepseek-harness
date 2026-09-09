@@ -2,6 +2,10 @@
 
 DeepSeek Harness is a plugin-based agent harness on vendored Cordis: **everything is a plugin**. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 
+## Custom checkout
+
+This checkout carries local customizations on the `oh-mike-dsh` integration branch. **Before changing, committing, or integrating any customization, load the [dsh-mike-branch-workflow](.agents/skills/dsh-mike-branch-workflow/SKILL.md) skill**: branch from `oh-mike-dsh`, keep each feature separate, merge back with `--no-ff`, and never modify upstream `master`. Rationale and trade-offs: [personal integration branch](.agents/notes/implemented/process/2026-09-09-personal-integration-branch.md).
+
 ## Pre-release stance: foundation over blast radius
 
 **Remove this section at the first tagged release.** With no external consumers, prefer the correct foundation over compatibility shims: rename or repackage freely and update every reference together. Backends reject old on-disk formats. SQLite uses monotonic `SCHEMA_VERSION`; `dsh-session` keeps `SESSION_FORMAT_VERSION` at `0` with no compatibility promise.
