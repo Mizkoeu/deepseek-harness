@@ -3,8 +3,8 @@
     "kind": "chunks",
     "chunks": [
       { "type": "block-start", "index": 0, "blockType": "tool-call" },
-      { "type": "tool-call-delta", "index": 0, "id": "call_goal_probe", "name": "update_goal", "argumentsDelta": "{\"goal_id\":\"missing-goal\",\"revision\":1,\"action\":\"pause\",\"objective\":\"\",\"max_goal_rounds\":0,\"blocked_reason\":\"\"}" },
-      { "type": "block-end", "index": 0, "block": { "type": "tool-call", "id": "call_goal_probe", "name": "update_goal", "arguments": "{\"goal_id\":\"missing-goal\",\"revision\":1,\"action\":\"pause\",\"objective\":\"\",\"max_goal_rounds\":0,\"blocked_reason\":\"\"}" } },
+      { "type": "tool-call-delta", "index": 0, "id": "call_goal_probe", "name": "update_goal", "argumentsDelta": "{\"goal_id\":\"missing-goal\",\"revision\":1,\"action\":\"pause\",\"objective\":\"probe filler\",\"max_goal_rounds\":6,\"blocked_reason\":\"\"}" },
+      { "type": "block-end", "index": 0, "block": { "type": "tool-call", "id": "call_goal_probe", "name": "update_goal", "arguments": "{\"goal_id\":\"missing-goal\",\"revision\":1,\"action\":\"pause\",\"objective\":\"probe filler\",\"max_goal_rounds\":6,\"blocked_reason\":\"\"}" } },
       { "type": "usage", "usage": { "inputTokens": 15, "outputTokens": 6 } },
       { "type": "finish", "reason": { "kind": "tool-calls" } }
     ]

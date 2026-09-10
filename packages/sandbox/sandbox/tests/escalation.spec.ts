@@ -12,8 +12,8 @@ import {
   WIDER_MODES,
   approveEscalation,
   escalationHintMarker,
+  normalizeEscalationArgs,
   sandboxDenialMarker,
-  validateEscalationArgs,
 } from '@deepseek-ai/dsh-sandbox'
 import type { EscalationApprover, EscalationOutcome } from '@deepseek-ai/dsh-sandbox'
 
@@ -29,16 +29,27 @@ describe('the strictly-wider ladder', () => {
   })
 })
 
-describe('validateEscalationArgs', () => {
-  it('accepts neither field, or both with a non-empty justification', () => {
-    expect(() => { validateEscalationArgs(undefined, undefined) }).not.toThrow()
-    expect(() => { validateEscalationArgs('workspace-write', 'because the workspace needs it') }).not.toThrow()
+describe('normalizeEscalationArgs', () => {
+  it('a genuine widen returns the requested mode and its justification', () => {
+    expect(normalizeEscalationArgs('workspace-write', 'because the workspace needs it', 'read-only'))
+      .toEqual({ requestedMode: 'workspace-write', justification: 'because the workspace needs it' })
   })
 
-  it('rejects one field without the other, and a blank justification', () => {
-    expect(() => { validateEscalationArgs('workspace-write', undefined) }).toThrow(/requires a justification/)
-    expect(() => { validateEscalationArgs(undefined, 'orphan reason') }).toThrow(/only valid together with sandbox_permissions/)
-    expect(() => { validateEscalationArgs('workspace-write', '   ') }).toThrow(/non-empty sentence/)
+  it('strips a fill that does not strictly widen the effective mode', () => {
+    // Same-mode (the strict-schema footgun), narrower, absent, null, and a
+    // missing effective mode all escalate nothing, so normalization yields no
+    // ask and the call runs at its own mode.
+    expect(normalizeEscalationArgs('workspace-write', 'filled reason', 'workspace-write')).toBeUndefined()
+    expect(normalizeEscalationArgs('workspace-write', '', 'danger-full-access')).toBeUndefined()
+    expect(normalizeEscalationArgs(undefined, undefined, 'read-only')).toBeUndefined()
+    expect(normalizeEscalationArgs(null, null, 'read-only')).toBeUndefined()
+    expect(normalizeEscalationArgs('workspace-write', 'reason', undefined)).toBeUndefined()
+  })
+
+  it('a genuine widen still requires a non-empty justification', () => {
+    expect(() => normalizeEscalationArgs('workspace-write', undefined, 'read-only')).toThrow(/requires a justification/)
+    expect(() => normalizeEscalationArgs('workspace-write', null, 'read-only')).toThrow(/requires a justification/)
+    expect(() => normalizeEscalationArgs('danger-full-access', '   ', 'workspace-write')).toThrow(/non-empty sentence/)
   })
 })
 

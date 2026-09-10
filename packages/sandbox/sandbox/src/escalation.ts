@@ -1,8 +1,8 @@
 /**
  * The escalation vocabulary and choreography shared by every sandbox-enforcing
  * tool family (`@deepseek-ai/dsh-tool-bash`, `@deepseek-ai/dsh-tool-fs`): the
- * strictly-wider ladder, the argument-pairing validation, the model-facing
- * denial/hint markers, and {@link approveEscalation} — the ordered fail-closed
+ * strictly-wider ladder, the strict-filler-tolerant argument normalization, the
+ * model-facing denial/hint markers, and {@link approveEscalation} — the ordered fail-closed
  * sequence that resolves a `sandbox_permissions` request through a
  * user-approval channel BEFORE anything executes. One home keeps the two
  * families' approval ordering and verbatim error texts from drifting apart.
@@ -41,23 +41,41 @@ export const WIDER_MODES: Record<string, readonly SandboxMode[]> = {
 export const ESCALATION_TARGETS: readonly SandboxMode[] = ['workspace-write', 'danger-full-access']
 
 /**
- * Validate the escalation argument pairing a tool schema cannot express:
- * `sandbox_permissions` and `justification` travel together — an approval
- * prompt without a reason, or a reason driving nothing, is a malformed ask —
- * and the justification must be a non-empty sentence.
- * @param sandboxPermissions - the raw `sandbox_permissions` argument, if given.
- * @param justification - the raw `justification` argument, if given.
+ * Reduce the raw `sandbox_permissions`/`justification` tool arguments to a
+ * genuine escalation ask, tolerating strict-schema fillers. A strict-mode
+ * endpoint (the OpenAI Responses API normalizes a request that omits `strict`
+ * into all-properties-required) forces the model to emit these optional control
+ * fields even when it means to escalate nothing: it fills the enum with its
+ * first value and the reason with a plausible sentence. `sandbox_permissions`
+ * is the driver — the ask exists only when it names a mode strictly wider than
+ * the call's effective mode; `null`/absent, a same-mode, or a narrower value all
+ * grant nothing, so the call runs through at its current mode instead of being
+ * rejected as a malformed escalation. Only a genuine widen must carry a
+ * non-empty justification, and only it reaches {@link approveEscalation}, which
+ * remains the authoritative strictly-wider and approval enforcement point.
+ * @param sandboxPermissions - the raw `sandbox_permissions` argument (`null` from a strict-nullable fill is treated as absent).
+ * @param justification - the raw `justification` argument (`null` treated as absent).
+ * @param effectiveMode - the call's effective mode the request must strictly widen, or `undefined` when no confining executor is mounted.
+ * @returns the genuine escalation `{ requestedMode, justification }` to approve, or `undefined` when the arguments escalate nothing.
  */
-export function validateEscalationArgs(sandboxPermissions: string | undefined, justification: string | undefined): void {
-  if (sandboxPermissions !== undefined && justification === undefined) {
+export function normalizeEscalationArgs(
+  sandboxPermissions: string | null | undefined,
+  justification: string | null | undefined,
+  effectiveMode: SandboxMode | undefined,
+): { requestedMode: SandboxMode; justification: string } | undefined {
+  const requestedMode = sandboxPermissions ?? undefined
+  if (requestedMode === undefined) return undefined
+  if (effectiveMode === undefined || !(WIDER_MODES[effectiveMode] ?? []).includes(requestedMode as SandboxMode)) {
+    return undefined
+  }
+  const reason = justification ?? undefined
+  if (reason === undefined) {
     throw new Error('invalid escalation: sandbox_permissions requires a justification')
   }
-  if (justification !== undefined && sandboxPermissions === undefined) {
-    throw new Error('invalid escalation: justification is only valid together with sandbox_permissions')
-  }
-  if (justification !== undefined && justification.trim().length === 0) {
+  if (reason.trim().length === 0) {
     throw new Error('invalid justification: expected a non-empty sentence')
   }
+  return { requestedMode: requestedMode as SandboxMode, justification: reason }
 }
 
 /**
