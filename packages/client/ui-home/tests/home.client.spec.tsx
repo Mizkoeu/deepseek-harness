@@ -29,9 +29,8 @@ describe('Home view store', () => {
 const sid = (id: string) => id as SessionId
 
 /** A session summary with sane defaults; overrides tune one classification input. */
-function summary(over: Partial<SessionSummary> & { id: string }): SessionSummary {
+function summary(over: Omit<Partial<SessionSummary>, 'id'> & { id: string }): SessionSummary {
   return {
-    id: sid(over.id),
     displayTitle: over.displayTitle ?? over.id,
     blank: false,
     running: false,
@@ -102,7 +101,7 @@ describe('Home launcher badge', () => {
     render(
       <HomeLauncher
         wide
-        useSessions={hooks(list).useSessions}
+        {...hooks(list)}
         useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: false })) as never}
         actions={{ setOpen: vi.fn(), toggle: vi.fn() } as never}
       />,
@@ -118,7 +117,7 @@ describe('Home launcher badge', () => {
     render(
       <HomeLauncher
         wide
-        useSessions={hooks([]).useSessions}
+        {...hooks([])}
         useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel(store.getSnapshot())) as never}
         actions={store.actions as never}
       />,
@@ -131,7 +130,7 @@ describe('Home launcher badge', () => {
     render(
       <HomeLauncher
         wide={false}
-        useSessions={hooks([summary({ id: 'p', pendingInteraction: 'approval' })]).useSessions}
+        {...hooks([summary({ id: 'p', pendingInteraction: 'approval' })])}
         useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true })) as never}
         actions={{ setOpen: vi.fn(), toggle: vi.fn() } as never}
       />,
