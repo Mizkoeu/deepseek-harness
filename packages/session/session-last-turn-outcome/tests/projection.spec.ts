@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import * as LastTurnOutcomePlugin from '@deepseek-ai/dsh-session-last-turn-outcome'
 import { lastTurnOutcomeProjectionDefinition } from '@deepseek-ai/dsh-session-last-turn-outcome/src/projection.ts'
@@ -37,7 +37,7 @@ describe('lastTurnOutcome projection unit (registry drive)', () => {
   })
 
   it('folds each turn/end reason kind to its coarse outcome', async () => {
-    const cases: readonly [Record<string, unknown>, LastTurnOutcome['kind']][] = [
+    const cases: readonly [TurnEndReason, LastTurnOutcome['kind']][] = [
       [{ kind: 'completed' }, 'normal'],
       [{ kind: 'aborted', reason: { kind: 'legacy' } }, 'interrupted'],
       [{ kind: 'interrupted' }, 'interrupted'],

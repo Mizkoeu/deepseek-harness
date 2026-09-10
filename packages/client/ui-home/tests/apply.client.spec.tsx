@@ -42,7 +42,7 @@ describe('ui-home apply', () => {
   it('injects open and archive callbacks that delegate to the runtime services', async () => {
     const b = await bench()
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    const injected = (b.slots.entries('shell.overlay')[0]!.inject as () => HomeInjected)()
+    const injected = (b.slots.entries('shell.overlay')[0]!.inject as unknown as () => HomeInjected)()
     expect(Object.keys(injected)).toEqual(['open', 'archive'])
     injected.open('sess-1' as never)
     expect(b.sessions.open).toHaveBeenCalledWith('sess-1')
