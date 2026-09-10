@@ -226,6 +226,7 @@ export function gatesForMode(selected: Mode): Gate[] {
         pnpmScript('test', 'test'),
         pnpmScript('issue-management', 'test:issue-management', { label: 'Issue management policy' }),
         pnpmScript('mike-upstream-sync', 'test:mike-upstream-sync', { label: 'Mike upstream sync policy' }),
+        pnpmScript('mike-upstream-freshness', 'test:mike-upstream-freshness', { label: 'Mike upstream freshness check' }),
         pnpmScript('duplication', 'duplication'),
         snapshotGate(),
         pnpmScript('build', 'build'),
@@ -252,6 +253,7 @@ function ciSharedStaticGates(): Gate[] {
     pnpmScript('cordis-config', 'verify-cordis-config', { label: 'Cordis config' }),
     pnpmScript('issue-management', 'test:issue-management', { label: 'Issue management policy' }),
     pnpmScript('mike-upstream-sync', 'test:mike-upstream-sync', { label: 'Mike upstream sync policy' }),
+    pnpmScript('mike-upstream-freshness', 'test:mike-upstream-freshness', { label: 'Mike upstream freshness check' }),
   ]
 }
 
