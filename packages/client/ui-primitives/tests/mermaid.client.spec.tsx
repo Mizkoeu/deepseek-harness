@@ -27,7 +27,8 @@ describe('renderMermaid', () => {
   it('renders sanitized svg under strict security', async () => {
     renderFn.mockResolvedValue({ svg: '<svg><g></g></svg>' })
     const result = await renderMermaid('graph TD; A-->B')
-    expect(result).toEqual({ ok: true, svg: expect.stringContaining('<svg') })
+    expect(result.ok).toBe(true)
+    expect(result.ok ? result.svg : '').toContain('<svg')
     expect(initialize).toHaveBeenCalledWith(expect.objectContaining({ securityLevel: 'strict', htmlLabels: false, theme: 'default' }))
     expect(renderFn).toHaveBeenCalledWith(expect.stringMatching(/^dsh-mermaid-/), 'graph TD; A-->B')
   })
@@ -79,21 +80,21 @@ describe('MermaidBlock', () => {
     renderFn.mockResolvedValue({ svg: '<svg><g></g></svg>' })
     const { container } = render(<MermaidBlock code="graph TD; A-->B" />)
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
-    await waitFor(() => expect(container.querySelector('[role="img"] svg')).not.toBeNull())
+    await waitFor(() => { expect(container.querySelector('[role="img"] svg')).not.toBeNull() })
     expect(container.querySelector('[aria-busy="true"]')).toBeNull()
   })
 
   it('falls back to the source code block on failure', async () => {
     renderFn.mockRejectedValue(new Error('nope'))
     const { container } = render(<MermaidBlock code="graph BROKEN SYNTAX" copyLabel="Copy" copiedLabel="Copied" />)
-    await waitFor(() => expect(container.querySelector('pre')).not.toBeNull())
+    await waitFor(() => { expect(container.querySelector('pre')).not.toBeNull() })
     expect(container.textContent).toContain('graph BROKEN SYNTAX')
   })
 
   it('abandons a render that resolves after unmount', async () => {
     let resolveRender: (() => void) | undefined
     renderFn.mockReturnValue(new Promise<{ svg: string }>((resolve) => {
-      resolveRender = () => resolve({ svg: '<svg/>' })
+      resolveRender = () => { resolve({ svg: '<svg/>' }) }
     }))
     const { container, unmount } = render(<MermaidBlock code="graph TD; A-->B" />)
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
@@ -111,7 +112,7 @@ describe('mermaid fence routing in MarkdownText', () => {
   it('renders a settled fence as a diagram, not its source', async () => {
     renderFn.mockResolvedValue({ svg: '<svg><g></g></svg>' })
     const { container } = render(<MarkdownText text={source} />)
-    await waitFor(() => expect(container.querySelector('[role="img"] svg')).not.toBeNull())
+    await waitFor(() => { expect(container.querySelector('[role="img"] svg')).not.toBeNull() })
     expect(container.textContent).not.toContain('graph TD')
   })
 
