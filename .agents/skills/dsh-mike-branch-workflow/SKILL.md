@@ -56,6 +56,12 @@ Local commits are not a remote backup. Push only when the user authorizes public
 
 Report feature branches, commit IDs, integration merge IDs, checks actually run, remaining dirty paths, and whether anything was pushed. Never restart the running Harness server merely to switch or merge branches.
 
+## Upstream maintenance, review, and deploy are separate
+
+On the published fork `MizkoEu/deepseek-harness`, the `mike upstream review sync` workflow keeps the fork's `master` mirror at the exact upstream head and, when `oh-mike-dsh` is behind that head, opens ONE draft pull request into `oh-mike-dsh` for human review. Automated maintenance stops at proposing: it never merges, force-pushes, deploys, or updates a running server. A human resolves conflicts on the PR branch, reviews breaking configuration and session-format changes, runs local validation, and merges. The fork's `pull_request` CI runs on team-only runners absent from a personal fork, so treat these PRs' check status as not-run until validated locally. The [upstream-review-sync Agent Note](../../notes/implemented/feature/2026-09-09-mike-upstream-review-sync.md) owns the design and its security guarantees.
+
+That sync uses reserved `mike/upstream-<full-sha>` import branches, an intentional exception to the `mike/<topic>` feature-branch rule: their source is an upstream import pointing at the upstream head, not hand-authored feature work, so GitHub can open a draft PR even when the merge conflicts. Do not treat an import branch as a feature branch, rebase it, or resolve conflicts on the mirror or `master`; resolve on the PR branch only.
+
 The root `AGENTS.md` directs future sessions here before customization work. A session whose skill catalog predates this file must read it directly; new project sessions discover it under `.agents/skills/`.
 
 This is workflow guidance, not a substitute for inspecting Git state or obtaining permission for publication and destructive operations.

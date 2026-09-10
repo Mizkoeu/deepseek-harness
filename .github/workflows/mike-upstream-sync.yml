@@ -1,0 +1,62 @@
+# Daily/manual upstream-mirror maintenance for Mike's PUBLIC fork.
+#
+# This workflow mirrors the upstream default branch onto the fork's `master`
+# and opens a single DRAFT pull request into `oh-mike-dsh` for HUMAN review. It
+# NEVER merges, force-pushes, deploys, or writes upstream/settings/reviews. All
+# policy lives in .github/mike-upstream-sync/sync.mjs (unit-tested).
+#
+# CI CANNOT VALIDATE THESE PRs AUTOMATICALLY. This repository's pull_request CI
+# runs on team-only runners (`dsh-ubuntu-24-04-16core` and self-hosted pools)
+# that do not exist on a personal fork, so bot PRs will not show green checks
+# here. Review requires MANUAL local validation; the parent must also set up
+# runners if fork CI is ever wanted. See the Agent Note
+# 2026-09-09-mike-upstream-review-sync.md.
+#
+# GITHUB_TOKEN limits (current GitHub behavior, verified against
+# https://docs.github.com/actions/using-workflows/triggering-a-workflow):
+# a PR opened by GITHUB_TOKEN CAN trigger pull_request workflows, but such runs
+# REQUIRE manual approval. Combined with the unavailable runners above, treat
+# check status on these PRs as "not run" until a human validates locally. New
+# fork Actions may also need to be enabled and allowed to create PRs; the parent
+# configures that after publish. Scheduled runs can be delayed under load and
+# GitHub disables schedules after ~60 days of repository inactivity.
+name: mike upstream review sync
+
+on:
+  schedule:
+    # 05:17 UTC daily — an off-hour minute to avoid the top-of-hour surge.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+# One queued run; do not cancel an in-progress mirror/PR operation midway.
+concurrency:
+  group: mike-upstream-review-sync
+  cancel-in-progress: false
+
+# Only the writes this automation needs on the fork: advance the mirror ref and
+# open the draft PR. No other scope.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    # Never run on upstream or any other repository — only Mike's fork.
+    if: github.repository == 'MizkoEu/deepseek-harness'
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout ONLY the trusted mirror branch, with credentials NOT persisted:
+      # this workflow never executes fetched upstream code with the write token.
+      # It only needs the repository's own .github/mike-upstream-sync/ scripts.
+      - name: Checkout fork mirror branch
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          persist-credentials: false
+
+      - name: Run upstream sync
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { main } = await import('${{ github.workspace }}/.github/mike-upstream-sync/run.mjs')
+            await main({ github, core })
