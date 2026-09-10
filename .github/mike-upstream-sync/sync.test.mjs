@@ -5,9 +5,14 @@
 // written or merged.
 
 import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-import { assertForkGuard, importBranchName, prBody, PR_TITLE_PREFIX, runSync } from './sync.mjs'
+import { assertForkGuard, importBranchName, isImportBranch, prBody, PR_TITLE_PREFIX, runSync } from './sync.mjs'
+
+const here = dirname(fileURLToPath(import.meta.url))
 
 const CONFIG = {
   fork: 'MizkoEu/deepseek-harness',
@@ -135,7 +140,7 @@ test('existing open automation PR is preserved and update queued (no new PR, hea
       'deepseek-ai/deepseek-harness#master': UPSTREAM_SHA,
       'MizkoEu/deepseek-harness#oh-mike-dsh': OLD_MIRROR_SHA,
     },
-    pulls: [{ number: 42, head: { ref: 'mike/upstream-old', sha: OLD_MIRROR_SHA }, base: { ref: 'oh-mike-dsh' }, draft: true, state: 'open' }],
+    pulls: [{ number: 42, head: { ref: importBranchName(CONFIG.prBranchPrefix, OLD_MIRROR_SHA), sha: OLD_MIRROR_SHA }, base: { ref: 'oh-mike-dsh' }, draft: true, state: 'open' }],
   })
   const summary = await runSync(CONFIG, api)
 
@@ -143,6 +148,24 @@ test('existing open automation PR is preserved and update queued (no new PR, hea
   assert.match(summary.pr.reason, /#42 awaiting review/)
   assert.deepEqual(calls.createRef, [], 'must not touch existing PR head')
   assert.deepEqual(calls.createPull, [])
+})
+
+test('an ordinary feature branch sharing the prefix is NOT treated as a bot PR', async () => {
+  // mike/upstream-review-sync is this feature's own source branch; it shares the
+  // "mike/upstream-" segment but is not prefix+full-SHA, so the sync must ignore
+  // it and open a real proposal instead of mistaking it for an open bot PR.
+  const { api, calls } = fakeApi({
+    branches: {
+      'MizkoEu/deepseek-harness#master': UPSTREAM_SHA,
+      'deepseek-ai/deepseek-harness#master': UPSTREAM_SHA,
+      'MizkoEu/deepseek-harness#oh-mike-dsh': OLD_MIRROR_SHA,
+    },
+    pulls: [{ number: 5, head: { ref: 'mike/upstream-review-sync', sha: OLD_MIRROR_SHA }, base: { ref: 'oh-mike-dsh' }, draft: false, state: 'open' }],
+  })
+  const summary = await runSync(CONFIG, api)
+
+  assert.equal(summary.pr.created, true, 'ordinary feature branch must not block a proposal')
+  assert.equal(calls.createPull.length, 1)
 })
 
 test('closed/rejected PR for same head is honored, not reopened', async () => {
@@ -202,6 +225,12 @@ test('incorrect fork parent is rejected', () => {
   assert.throws(() => assertForkGuard(CONFIG, { fork: false }), /must be a fork of/)
 })
 
+test('fork-parent comparison is case-insensitive (GitHub slugs are)', () => {
+  assert.doesNotThrow(() =>
+    assertForkGuard(CONFIG, { fork: true, parent: { full_name: 'DeepSeek-AI/DeepSeek-Harness' } }),
+  )
+})
+
 test('mirror equal to integration branch is rejected', () => {
   assert.throws(
     () => assertForkGuard({ ...CONFIG, mirrorBranch: 'oh-mike-dsh' }, { fork: true, parent: { full_name: CONFIG.upstream } }),
@@ -222,4 +251,28 @@ test('PR body pins the human-review + no-tests + no-deploy contract', () => {
   assert.match(body, /NO tests and NO server update/)
   assert.match(body, /cannot run this repository's CI on personal runners/)
   assert.match(body, /will NOT reopen it/)
+})
+
+test('isImportBranch requires prefix + full 40-hex SHA', () => {
+  const p = CONFIG.prBranchPrefix
+  assert.equal(isImportBranch(p, `${p}${'a'.repeat(40)}`), true)
+  assert.equal(isImportBranch(p, 'mike/upstream-review-sync'), false, 'ordinary feature branch')
+  assert.equal(isImportBranch(p, `${p}abc`), false, 'short suffix')
+  assert.equal(isImportBranch(p, `${p}${'g'.repeat(40)}`), false, 'non-hex')
+  assert.equal(isImportBranch(p, `${p}${'A'.repeat(40)}`), false, 'uppercase is not a git SHA form we emit')
+  assert.equal(isImportBranch(p, 'other/branch'), false)
+})
+
+test('workflow checks out the trusted oh-mike-dsh branch, NOT the master mirror', () => {
+  const wf = readFileSync(resolve(here, '..', 'workflows', 'mike-upstream-sync.yml'), 'utf8')
+  assert.match(wf, /ref:\s*oh-mike-dsh/, 'must check out the custom integration branch')
+  assert.doesNotMatch(wf, /^\s*ref:\s*master\s*$/m, 'must NOT check out the upstream mirror')
+  assert.match(wf, /persist-credentials:\s*false/)
+})
+
+test('the local entry module the workflow imports exists in the checked-out tree', () => {
+  // The workflow imports .github/mike-upstream-sync/run.mjs from the checked-out
+  // oh-mike-dsh tree. This file lives beside it, so its presence proves the
+  // import target ships on the trusted branch (the mirror would not carry it).
+  assert.ok(existsSync(resolve(here, 'run.mjs')), 'run.mjs must exist beside sync.mjs on the trusted branch')
 })

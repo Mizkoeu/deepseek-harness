@@ -45,6 +45,30 @@ export function importBranchName(prefix, sha) {
   return `${prefix}${sha}`
 }
 
+/**
+ * Does a branch name denote an automation-owned import branch for THIS config?
+ * It must be exactly the prefix followed by a full 40-hex-char commit SHA. This
+ * deliberately excludes ordinary feature branches that merely share the prefix
+ * segment (e.g. `mike/upstream-review-sync`), so the sync never mistakes its own
+ * source branch for a bot PR head.
+ * @param {string} prefix Branch prefix from config.
+ * @param {string} ref Branch name (no `refs/heads/`).
+ * @returns {boolean}
+ */
+export function isImportBranch(prefix, ref) {
+  return ref.startsWith(prefix) && /^[0-9a-f]{40}$/.test(ref.slice(prefix.length))
+}
+
+/**
+ * Normalize an owner/name repository slug for comparison. GitHub owner and
+ * repository slugs are case-insensitive, so the fork guard compares lowercased.
+ * @param {string} repo
+ * @returns {string}
+ */
+export function normalizeRepo(repo) {
+  return repo.toLowerCase()
+}
+
 /** Marker prepended to automation-owned PR titles so a later run can recognize its own open PR. */
 export const PR_TITLE_PREFIX = '[upstream-sync] '
 
@@ -87,7 +111,7 @@ export function assertForkGuard(config, repo) {
   if (config.mirrorBranch === config.integrationBranch) {
     throw new Error(`mirrorBranch and integrationBranch must differ; both are "${config.mirrorBranch}"`)
   }
-  if (!repo.fork || repo.parent?.full_name !== config.upstream) {
+  if (!repo.fork || normalizeRepo(repo.parent?.full_name ?? '') !== normalizeRepo(config.upstream)) {
     throw new Error(
       `refusing to run: ${config.fork} must be a fork of ${config.upstream}, got fork=${repo.fork} parent=${repo.parent?.full_name ?? 'none'}`,
     )
@@ -144,7 +168,7 @@ async function maintainReviewPull(config, api, upstreamSha) {
   }
 
   const openOwned = (await api.listPulls(config.fork, { base: config.integrationBranch, state: 'open' }))
-    .filter(pull => pull.head.ref.startsWith(config.prBranchPrefix))
+    .filter(pull => isImportBranch(config.prBranchPrefix, pull.head.ref))
   if (openOwned.length > 0) {
     return { created: false, reason: `open review PR #${openOwned[0].number} awaiting review; update queued` }
   }

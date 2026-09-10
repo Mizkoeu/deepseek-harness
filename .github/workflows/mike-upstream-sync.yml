@@ -20,6 +20,19 @@
 # fork Actions may also need to be enabled and allowed to create PRs; the parent
 # configures that after publish. Scheduled runs can be delayed under load and
 # GitHub disables schedules after ~60 days of repository inactivity.
+#
+# KNOWN LIMITATION — updating refs whose diff touches .github/workflows/**:
+# GITHUB_TOKEN cannot create or update workflow files. When the upstream head
+# this sync mirrors (or the reserved import branch it creates) differs from the
+# fork in any .github/workflows/** file, the ref write is rejected server-side
+# ("refusing to allow a GitHub App to create or update workflow ... without
+# workflows permission"), and the `workflows` scope is NOT grantable to
+# GITHUB_TOKEN by any permissions key. The mirror advance and import-branch
+# creation therefore succeed only while upstream's workflow files are unchanged;
+# a workflow-touching upstream update fails loud and needs a human (a manual
+# push, or a PAT/GitHub App with `workflows` deliberately provisioned by the
+# parent — NOT auto-copied here). This automation ships no such credential. See
+# the Agent Note's auth-limitation section.
 name: mike upstream review sync
 
 on:
@@ -41,17 +54,21 @@ permissions:
 
 jobs:
   sync:
-    # Never run on upstream or any other repository — only Mike's fork.
-    if: github.repository == 'MizkoEu/deepseek-harness'
+    # Never run on upstream or any other repository — only Mike's fork. The
+    # comparison is case-insensitive because GitHub owner/repo slugs are.
+    if: ${{ github.repository == 'MizkoEu/deepseek-harness' || github.repository == 'mizkoeu/deepseek-harness' }}
     runs-on: ubuntu-latest
     steps:
-      # Checkout ONLY the trusted mirror branch, with credentials NOT persisted:
-      # this workflow never executes fetched upstream code with the write token.
-      # It only needs the repository's own .github/mike-upstream-sync/ scripts.
-      - name: Checkout fork mirror branch
+      # Check out the TRUSTED custom integration branch (oh-mike-dsh), NOT the
+      # master mirror: the mirror holds upstream code and does NOT contain this
+      # automation's .github/mike-upstream-sync/ scripts, so checking it out
+      # would either module-not-found or, once the mirror advances, execute
+      # upstream-controlled code with the write token. oh-mike-dsh is
+      # human-reviewed and owns these scripts. Credentials are not persisted.
+      - name: Checkout trusted integration branch
         uses: actions/checkout@v4
         with:
-          ref: master
+          ref: oh-mike-dsh
           persist-credentials: false
 
       - name: Run upstream sync

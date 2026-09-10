@@ -16,7 +16,9 @@ describe('mike upstream review sync workflow', () => {
     // workflow_dispatch is present with no inputs (null in YAML).
     expect(Object.keys(workflow.on)).toContain('workflow_dispatch')
     expect(workflow.concurrency).toEqual({ group: 'mike-upstream-review-sync', 'cancel-in-progress': false })
-    expect(workflow.jobs.sync.if).toBe("github.repository == 'MizkoEu/deepseek-harness'")
+    // Guard is case-insensitive (GitHub slugs are) and pins the fork name.
+    expect(String(workflow.jobs.sync.if)).toContain("github.repository == 'MizkoEu/deepseek-harness'")
+    expect(String(workflow.jobs.sync.if).toLowerCase()).toContain('mizkoeu/deepseek-harness')
     expect(workflow.jobs.sync['runs-on']).toBe('ubuntu-latest')
   })
 
@@ -25,12 +27,15 @@ describe('mike upstream review sync workflow', () => {
     expect(workflow.permissions).toEqual({ contents: 'write', 'pull-requests': 'write' })
   })
 
-  it('checks out only the trusted mirror branch without persisting credentials', () => {
+  it('checks out the trusted integration branch (oh-mike-dsh), never the master mirror', () => {
     const workflow = loadWorkflow('.github/workflows/mike-upstream-sync.yml')
     const steps = jobSteps(workflow, 'sync')
     const checkout = steps.find(step => typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@'))
     if (!isRecord(checkout) || !isRecord(checkout.with)) throw new TypeError('checkout step must define with')
-    expect(checkout.with).toMatchObject({ ref: 'master', 'persist-credentials': false })
+    // The mirror holds upstream code and lacks this automation's scripts;
+    // checking it out would module-not-found or run upstream code with the token.
+    expect(checkout.with).toMatchObject({ ref: 'oh-mike-dsh', 'persist-credentials': false })
+    expect(checkout.with.ref).not.toBe('master')
   })
 
   it('runs the sync through the unit-tested run.mjs entry, executing no fetched upstream code', () => {
