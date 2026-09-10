@@ -585,39 +585,48 @@ describe('sandbox escalation through the generic task producer', () => {
     await expect(ctx.plugin(ToolBash)).rejects.toThrow('tool-bash: the mounted bash executor confines but ctx.sandboxPolicy is missing')
   })
 
-  it('advertises the sandbox fields and validates their pairing', async () => {
+  it('advertises the sandbox fields and validates a genuine widen\'s justification', async () => {
     const { ctx } = await setupSandboxed()
     const schema = ctx.tools.schemas().find(item => item.name === 'bash')!
     const properties = schema.parameters.properties as Record<string, { enum?: string[] }>
     expect(properties['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
     expect(schema.description).toContain('approval prompt')
 
+    // A genuine widen (workspace-write over the read-only default) must carry a
+    // non-empty justification.
     for (const args of [
       { command: 'true', description: 'd', sandbox_permissions: 'workspace-write' },
-      { command: 'true', description: 'd', justification: 'why' },
       { command: 'true', description: 'd', sandbox_permissions: 'workspace-write', justification: ' ' },
     ]) {
       expect((await call(ctx, 'bash', args)).isError).toBe(true)
     }
+    // A lone justification names no wider mode, so it escalates nothing and runs.
+    expect((await call(ctx, 'bash', { command: 'true', description: 'd', justification: 'why' })).isError).toBe(false)
   })
 
-  it('rejects injected escalation without a sandbox and non-widening escalation without prompting', async () => {
+  it('runs instead of prompting when the escalation fields do not name a genuine widen', async () => {
+    // No confining executor: an injected sandbox_permissions escalates nothing.
     const plain = await setup()
-    expect(text(await call(plain, 'bash', escalate))).toContain('not available in this composition')
+    expect((await call(plain, 'bash', escalate)).isError).toBe(false)
 
-    const { ctx } = await setupSandboxed(true)
+    // Same-mode fill (the strict-schema footgun): workspace-write requested from
+    // a workspace-write session is a no-op, so the command runs without a prompt.
+    const { ctx, bash } = await setupSandboxed(true)
     const prompted = vi.fn()
     ctx.on('approval/request', () => { prompted(); return Promise.resolve<ApprovalOutcome>('allowed-once') })
     const result = await call(ctx, 'bash', { ...escalate, sandbox_permissions: 'workspace-write' }, sandboxAgent('workspace-write'))
-    expect(text(result)).toContain('not strictly wider')
+    expect(result.isError).toBe(false)
     expect(prompted).not.toHaveBeenCalled()
+    expect(bash.modes.at(-1)).toBe('workspace-write')
 
+    // A malformed effective mode has no wider target either, so the same holds.
     const malformed = sandboxAgent()
     ;(malformed.session.events as unknown as Array<{ type: string; data: { mode: string } }>).push({
       type: 'sandbox/mode',
       data: { mode: 'unknown-mode' },
     })
-    expect(text(await call(ctx, 'bash', escalate, malformed))).toContain('not strictly wider')
+    expect((await call(ctx, 'bash', escalate, malformed)).isError).toBe(false)
+    expect(prompted).not.toHaveBeenCalled()
   })
 
   it('fails closed when approval cannot be routed', async () => {

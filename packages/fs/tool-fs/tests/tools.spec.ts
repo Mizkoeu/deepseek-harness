@@ -913,17 +913,24 @@ describe('sandbox escalation API (write/edit)', () => {
     expect(text(result)).toContain('no agent to route it through')
   })
 
-  it('rejects the escalation argument pairing (one field without the other)', async () => {
-    const { ctx } = await setupConfining()
-    const missing = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write' }, escalationAgent())
+  it('requires a justification for a genuine widen but ignores a same-mode fill', async () => {
+    const { ctx, fs } = await setupConfining()
+    // A genuine widen (danger-full-access over the workspace-write default) still
+    // needs its justification.
+    const missing = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'danger-full-access' }, escalationAgent())
     expect(missing.isError).toBe(true)
     expect(text(missing)).toContain('sandbox_permissions requires a justification')
+    // A same-mode fill (workspace-write from a workspace-write session, with an
+    // empty justification) escalates nothing, so the mutation runs at the
+    // standing mode instead of failing.
+    const filled = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write', justification: '' }, escalationAgent())
+    expect(filled.isError).toBe(false)
+    expect(fs.stamped.at(-1)).toEqual({ mode: 'workspace-write', workspaceRoot: resolve('/session-project') })
   })
 
-  it('sandbox_permissions under a non-confining backend fails closed (unadvertised field still reaches execute)', async () => {
+  it('ignores an unadvertised sandbox_permissions under a non-confining backend', async () => {
     const { ctx } = await setup()
     const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write', justification: 'why' }, escalationAgent())
-    expect(result.isError).toBe(true)
-    expect(text(result)).toContain('not available in this composition')
+    expect(result.isError).toBe(false)
   })
 })
