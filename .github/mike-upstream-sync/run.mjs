@@ -61,8 +61,16 @@ export function octokitApi(github) {
       return data.status
     },
     async listPulls(repo, opts) {
-      const { data } = await github.rest.pulls.list({ ...split(repo), base: opts.base, state: opts.state, head: opts.head })
-      return data.map(pull => ({
+      // Paginate: the one-open-PR invariant would break if an owned import PR
+      // sat beyond the default first page of 30.
+      const pulls = await github.paginate(github.rest.pulls.list, {
+        ...split(repo),
+        base: opts.base,
+        state: opts.state,
+        head: opts.head,
+        per_page: 100,
+      })
+      return pulls.map(pull => ({
         number: pull.number,
         title: pull.title,
         head: { ref: pull.head.ref, sha: pull.head.sha, repoFullName: pull.head.repo?.full_name },

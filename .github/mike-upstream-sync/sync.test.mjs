@@ -307,18 +307,46 @@ test('isImportBranch requires prefix + full 40-hex SHA', () => {
   assert.equal(isImportBranch(p, 'other/branch'), false)
 })
 
-test('isOwnedReviewPull requires import branch, same-repo head, AND marker title', () => {
+test('isOwnedReviewPull rests on the stable import-head + same-repo pair, not a mutable title', () => {
   const ownedBranch = importBranchName(CONFIG.prBranchPrefix, UPSTREAM_SHA)
   const owned = { title: `${PR_TITLE_PREFIX}x`, head: { ref: ownedBranch, repoFullName: CONFIG.fork } }
   assert.equal(isOwnedReviewPull(CONFIG, owned), true)
+  // A human renamed the PR during review: still ours (ownership ignores title),
+  // so the next run does NOT spawn a duplicate proposal.
+  assert.equal(isOwnedReviewPull(CONFIG, { ...owned, title: 'Manually retitled during review' }), true)
   // Same import-branch name but authored from a different fork: not ours.
   assert.equal(isOwnedReviewPull(CONFIG, { ...owned, head: { ...owned.head, repoFullName: 'stranger/deepseek-harness' } }), false)
-  // Import-branch name and same repo but no automation marker: not ours.
-  assert.equal(isOwnedReviewPull(CONFIG, { ...owned, title: 'Manual: update' }), false)
-  // Ordinary feature branch with the marker: not ours (head is not an import branch).
+  // Ordinary feature branch (not prefix+full-SHA): not ours.
   assert.equal(isOwnedReviewPull(CONFIG, { title: `${PR_TITLE_PREFIX}x`, head: { ref: 'mike/upstream-review-sync', repoFullName: CONFIG.fork } }), false)
-  // Same-repo head SHA form is case-insensitive on the repo slug.
+  // Same-repo head slug is compared case-insensitively.
   assert.equal(isOwnedReviewPull(CONFIG, { ...owned, head: { ...owned.head, repoFullName: 'mizkoeu/deepseek-harness' } }), true)
+})
+
+test('an owned PR beyond the first page is still detected (full pagination)', async () => {
+  // The fake returns the complete pulls list, mirroring github.paginate. Bury an
+  // owned import PR after 40 unrelated PRs to prove the invariant does not rely
+  // on the default first page of 30.
+  const filler = Array.from({ length: 40 }, (_, i) => ({
+    number: 100 + i,
+    head: { ref: `feature/other-${i}`, repoFullName: CONFIG.fork },
+    base: { ref: 'oh-mike-dsh' },
+    draft: false,
+    state: 'open',
+  }))
+  const ownedLate = { number: 999, head: { ref: importBranchName(CONFIG.prBranchPrefix, OLD_MIRROR_SHA), repoFullName: CONFIG.fork }, base: { ref: 'oh-mike-dsh' }, draft: true, state: 'open' }
+  const { api, calls } = fakeApi({
+    branches: {
+      'MizkoEu/deepseek-harness#master': UPSTREAM_SHA,
+      'deepseek-ai/deepseek-harness#master': UPSTREAM_SHA,
+      'MizkoEu/deepseek-harness#oh-mike-dsh': OLD_MIRROR_SHA,
+    },
+    pulls: [...filler, ownedLate],
+  })
+  const summary = await runSync(CONFIG, api)
+
+  assert.equal(summary.pr.created, false)
+  assert.match(summary.pr.reason, /#999 awaiting review/)
+  assert.deepEqual(calls.createPull, [])
 })
 
 test('workflow checks out the trusted oh-mike-dsh branch, NOT the master mirror', () => {

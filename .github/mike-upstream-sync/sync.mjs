@@ -61,20 +61,22 @@ export function isImportBranch(prefix, ref) {
 }
 
 /**
- * Is a pull request one this automation owns? All three must hold, so an
- * unrelated PR that merely shares one trait is never honored: its head branch
- * is a prefix+full-SHA import branch, its head lives in the fork itself (not a
- * cross-fork contribution), and its title carries the automation marker.
+ * Is a pull request one this automation owns? Ownership rests on the STABLE,
+ * immutable pair: the head is a prefix+full-40-hex-SHA import branch (a reserved
+ * namespace this sync alone writes; the full-SHA pattern excludes ordinary
+ * feature branches like `mike/upstream-review-sync`), and that head lives in the
+ * fork itself rather than a cross-fork contribution. Title and body are
+ * deliberately NOT part of ownership: a human may rename the PR during review,
+ * and keying on a mutable marker would spawn a duplicate proposal on the next
+ * run.
  * @param {SyncConfig} config
- * @param {{ title: string, head: { ref: string, repoFullName?: string } }} pull
+ * @param {{ head: { ref: string, repoFullName?: string } }} pull
  * @returns {boolean}
  */
 export function isOwnedReviewPull(config, pull) {
   const sameRepoHead = pull.head.repoFullName === undefined
     || normalizeRepo(pull.head.repoFullName) === normalizeRepo(config.fork)
-  return isImportBranch(config.prBranchPrefix, pull.head.ref)
-    && sameRepoHead
-    && pull.title.startsWith(PR_TITLE_PREFIX)
+  return isImportBranch(config.prBranchPrefix, pull.head.ref) && sameRepoHead
 }
 
 /**
