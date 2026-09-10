@@ -1,6 +1,11 @@
-# Daily/manual upstream-mirror maintenance for Mike's PUBLIC fork.
+# Operator-initiated upstream-mirror maintenance for Mike's PUBLIC fork.
 #
-# This workflow mirrors the upstream default branch onto the fork's `master`
+# This workflow runs ONLY on manual `workflow_dispatch`; it has no schedule.
+# Routine upstream freshness is a per-clone concern handled at custom-session
+# start by .github/mike-upstream-sync/freshness.mjs (see the session-start
+# freshness Agent Note), which is a read-only git check that advances a shared
+# stamp only on success and never triggers this workflow. When a human dispatches
+# it, this workflow mirrors the upstream default branch onto the fork's `master`
 # and opens a single DRAFT pull request into `oh-mike-dsh` for HUMAN review. It
 # NEVER merges, force-pushes, deploys, or writes upstream/settings/reviews. All
 # policy lives in .github/mike-upstream-sync/sync.mjs (unit-tested).
@@ -19,8 +24,7 @@
 # REQUIRE manual approval. Combined with the unavailable runners above, treat
 # check status on these PRs as "not run" until a human validates locally. New
 # fork Actions may also need to be enabled and allowed to create PRs; the
-# repository operator configures that after publication. Scheduled runs can be
-# delayed under load and GitHub disables schedules after ~60 days of inactivity.
+# repository operator configures that after publication.
 #
 # KNOWN LIMITATION — writing refs whose diff touches .github/workflows/**:
 # GITHUB_TOKEN cannot create or update workflow files, and the `workflows` scope
@@ -39,9 +43,6 @@
 name: mike upstream review sync
 
 on:
-  schedule:
-    # 05:17 UTC daily — an off-hour minute to avoid the top-of-hour surge.
-    - cron: '17 5 * * *'
   workflow_dispatch:
 
 # One queued run; do not cancel an in-progress mirror/PR operation midway.

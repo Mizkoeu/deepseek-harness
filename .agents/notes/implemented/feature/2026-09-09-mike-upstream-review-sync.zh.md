@@ -10,7 +10,7 @@ Mike 的定制内容位于本地 `oh-mike-dsh` 集成分支，该分支从上游
 
 ## Decision
 
-`mike upstream review sync` GitHub Actions 工作流（`.github/workflows/mike-upstream-sync.yml`）每天 UTC `17 5 * * *` 运行，并支持 `workflow_dispatch`。它以 `github.repository == 'MizkoEu/deepseek-harness'`（不区分大小写比较，因为 GitHub 的 slug 如此）为守卫，因此绝不会在上游运行；使用单队列并发且不取消进行中的运行；仅请求 `contents: write` 和 `pull-requests: write`。它以 `persist-credentials: false` 检出受信任的自定义集成分支 `oh-mike-dsh`，并通过 `actions/github-script` 运行一个小型 ES 模块入口；它绝不使用写令牌安装、构建或执行获取到的上游代码。检出 `oh-mike-dsh` 而非 `master` 镜像至关重要：镜像持有上游代码，且不携带本自动化的 `.github/mike-upstream-sync/` 脚本，因此检出镜像会导致模块找不到，或在镜像推进后用写令牌执行上游控制的代码。
+`mike upstream review sync` GitHub Actions 工作流（`.github/workflows/mike-upstream-sync.yml`）仅在操作者发起的 `workflow_dispatch` 上运行，不带任何计划任务。例行的上游新鲜度检查已迁移到每个克隆在自定义会话开始时的检查（[会话开始时的上游新鲜度](../process/2026-09-10-session-start-upstream-freshness.md)）；本工作流执行人工触发的镜像与提议步骤。它以 `github.repository == 'MizkoEu/deepseek-harness'`（不区分大小写比较，因为 GitHub 的 slug 如此）为守卫，因此绝不会在上游运行；使用单队列并发且不取消进行中的运行；仅请求 `contents: write` 和 `pull-requests: write`。它以 `persist-credentials: false` 检出受信任的自定义集成分支 `oh-mike-dsh`，并通过 `actions/github-script` 运行一个小型 ES 模块入口；它绝不使用写令牌安装、构建或执行获取到的上游代码。检出 `oh-mike-dsh` 而非 `master` 镜像至关重要：镜像持有上游代码，且不携带本自动化的 `.github/mike-upstream-sync/` 脚本，因此检出镜像会导致模块找不到，或在镜像推进后用写令牌执行上游控制的代码。它以 `persist-credentials: false` 检出受信任的自定义集成分支 `oh-mike-dsh`，并通过 `actions/github-script` 运行一个小型 ES 模块入口；它绝不使用写令牌安装、构建或执行获取到的上游代码。检出 `oh-mike-dsh` 而非 `master` 镜像至关重要：镜像持有上游代码，且不携带本自动化的 `.github/mike-upstream-sync/` 脚本，因此检出镜像会导致模块找不到，或在镜像推进后用写令牌执行上游控制的代码。
 
 所有策略都位于经过单元测试的 `.github/mike-upstream-sync/sync.mjs` 中，GitHub 客户端以注入方式提供，因此测试可针对伪 API 运行且不触网。每个周期都会验证该 fork 确实是所指定上游的 fork、且镜像分支与集成分支不同，通过仓库 API 发现上游默认分支，然后以 `force: false` 将 fork 的 `master` 镜像推进到与上游头部完全一致（已一致时为空操作；发生分叉则拒绝——绝不重置或强制）。它绝不写入上游引用、集成分支头部、设置、auto-merge 或评审。
 
@@ -20,14 +20,14 @@ Mike 的定制内容位于本地 `oh-mike-dsh` 集成分支，该分支从上游
 
 ## CI cannot validate these PRs automatically
 
-本仓库的 `pull_request` CI 运行在团队专用 runner 上——`dsh-ubuntu-24-04-16core` 和自托管池——这些在个人 fork 上并不存在，因此这些继承来的作业无法在那里运行，其检查会保持缺失或待定；缺失或待定的检查不是通过。根据当前 GitHub 行为（[triggering a workflow](https://docs.github.com/actions/using-workflows/triggering-a-workflow)），由 `GITHUB_TOKEN` 开出的 PR 可以触发 `pull_request` 工作流，但此类运行需要人工批准；结合不可用的 runner，应把这些 PR 的检查状态视为"未运行"，直到人工在本地完成验证。新 fork 的 Actions 可能需要启用并被允许创建 PR，这由仓库操作者在发布后配置；计划任务在负载下可能被延迟，且仓库长期无活动后 GitHub 会禁用计划任务。把庞大的 CI 矩阵重新设计为在个人 runner 上运行超出范围；手动验证与可选的 runner 配置才是有文档记录的路径。
+本仓库的 `pull_request` CI 运行在团队专用 runner 上——`dsh-ubuntu-24-04-16core` 和自托管池——这些在个人 fork 上并不存在，因此这些继承来的作业无法在那里运行，其检查会保持缺失或待定；缺失或待定的检查不是通过。根据当前 GitHub 行为（[triggering a workflow](https://docs.github.com/actions/using-workflows/triggering-a-workflow)），由 `GITHUB_TOKEN` 开出的 PR 可以触发 `pull_request` 工作流，但此类运行需要人工批准；结合不可用的 runner，应把这些 PR 的检查状态视为"未运行"，直到人工在本地完成验证。新 fork 的 Actions 可能需要启用并被允许创建 PR，这由仓库操作者在发布后配置。把庞大的 CI 矩阵重新设计为在个人 runner 上运行超出范围；手动验证与可选的 runner 配置才是有文档记录的路径。
 
 ## Alternatives considered
 
 - **使用 merge-upstream API 或合并提交。** 拒绝：它可能在 fork 上创建本地合并，而非上游头部的精确镜像。同步以 `force: false` 将镜像引用快进到精确 SHA，使镜像始终与上游一致，冲突解决只发生在人工拥有的 PR 分支上。
 - **对已验证的更新自动合并或部署。** 拒绝：定制分支的全部意义在于人工评审；上游变更可能破坏配置和会话格式，而 fork 的 CI 甚至无法跑绿。自动化止步于提出一个草稿 PR。
 - **在分叉时强制更新镜像或保留分支。** 拒绝：强制写入可能摧毁工作并掩盖漂移。分叉与 SHA 不匹配会大声拒绝，且绝不删除或强制推送任何分支。
-- **每天重开一个已关闭的提议。** 拒绝：关闭了某提议的人不应就同一头部被反复打扰；只有更新的上游头部才创建下一次提议。
+- **在下次运行时重开一个已关闭的提议。** 拒绝：关闭了某提议的人不应就同一头部被反复打扰；只有更新的上游头部才创建下一次提议。
 - **重新设计 CI 使 fork PR 在托管 runner 上跑绿。** 拒绝为超出范围且不成比例；该限制已记录，人工本地验证是评审者的路径。
 
 ## Auth limitation — updating refs whose diff touches workflow files
@@ -44,4 +44,4 @@ Mike 的定制内容位于本地 `oh-mike-dsh` 集成分支，该分支从上游
 
 ## Testing
 
-`.github/mike-upstream-sync/sync.test.mjs`（`node:test`，通过 `pnpm run test:mike-upstream-sync` 与 doc-sync 门列表运行）针对一个集中断言安全不变量的伪 API 驱动策略：写入仅指向 fork、引用更新携带 `force: false`、集成分支绝不被写入或合并。它覆盖空操作路径、有新变更时的镜像加草稿 PR、镜像分叉拒绝、开放 PR 的保留与更新排队、一个埋在默认首页之后的自有 PR 仍经完整分页被检出、一个共享前缀的普通特性分支不被当作机器人 PR、`isOwnedReviewPull` 依赖不可变的导入头部加同仓组合（容忍评审者的重命名、拒绝陌生 fork 头部）、已关闭 PR 的遵守、幂等分支复用、不同 SHA 的分支冲突、真正的 404 创建导入分支与 403/网络/5xx 携零 createRef 传播的对比、错误 fork 与分支相等的拒绝、不区分大小写的 fork 父仓匹配、`isImportBranch` 的前缀加完整 SHA 匹配、API 错误的大声传播，以及固定的 PR 正文。两个结构测试证明检出修复：该套件读取工作流并断言它检出 `oh-mike-dsh` 而绝不检出 `master`，并断言被导入的 `run.mjs` 入口就在此受信任分支上与 `sync.mjs` 相邻存在。`scripts/mike-upstream-sync-workflow.spec.ts` 用既有的 `js-yaml` 依赖解析工作流 YAML，断言计划与 dispatch 触发、不区分大小写的 fork 守卫、最小权限、无凭据的 `oh-mike-dsh` 检出（绝非镜像），以及运行仅执行经过单元测试的入口而无获取代码的构建步骤。
+`.github/mike-upstream-sync/sync.test.mjs`（`node:test`，通过 `pnpm run test:mike-upstream-sync` 与 doc-sync 门列表运行）针对一个集中断言安全不变量的伪 API 驱动策略：写入仅指向 fork、引用更新携带 `force: false`、集成分支绝不被写入或合并。它覆盖空操作路径、有新变更时的镜像加草稿 PR、镜像分叉拒绝、开放 PR 的保留与更新排队、一个埋在默认首页之后的自有 PR 仍经完整分页被检出、一个共享前缀的普通特性分支不被当作机器人 PR、`isOwnedReviewPull` 依赖不可变的导入头部加同仓组合（容忍评审者的重命名、拒绝陌生 fork 头部）、已关闭 PR 的遵守、幂等分支复用、不同 SHA 的分支冲突、真正的 404 创建导入分支与 403/网络/5xx 携零 createRef 传播的对比、错误 fork 与分支相等的拒绝、不区分大小写的 fork 父仓匹配、`isImportBranch` 的前缀加完整 SHA 匹配、API 错误的大声传播，以及固定的 PR 正文。两个结构测试证明检出修复：该套件读取工作流并断言它检出 `oh-mike-dsh` 而绝不检出 `master`，并断言被导入的 `run.mjs` 入口就在此受信任分支上与 `sync.mjs` 相邻存在。`scripts/mike-upstream-sync-workflow.spec.ts` 用既有的 `js-yaml` 依赖解析工作流 YAML，断言它不带任何计划任务且仅有 `workflow_dispatch` 触发、不区分大小写的 fork 守卫、最小权限、无凭据的 `oh-mike-dsh` 检出（绝非镜像），以及运行仅执行经过单元测试的入口而无获取代码的构建步骤。

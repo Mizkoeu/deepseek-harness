@@ -6,13 +6,16 @@ import { describe, expect, it } from 'vitest'
 const root = resolve(import.meta.dirname, '..')
 
 describe('mike upstream review sync workflow', () => {
-  it('runs daily and on demand, guarded to the fork, with a single queued run', () => {
+  it('runs on manual dispatch only, with no schedule, guarded to the fork and single-queued', () => {
     const workflow = loadWorkflow('.github/workflows/mike-upstream-sync.yml')
     if (!isRecord(workflow.on) || !isRecord(workflow.jobs) || !isRecord(workflow.jobs.sync)) {
       throw new TypeError('sync workflow must define on-triggers and the sync job')
     }
 
-    expect(workflow.on.schedule).toEqual([{ cron: '17 5 * * *' }])
+    // The cadence moved to a per-clone session-start freshness check; this
+    // workflow must carry NO schedule and remain operator-initiated only.
+    expect(workflow.on.schedule).toBeUndefined()
+    expect(Object.keys(workflow.on)).not.toContain('schedule')
     // workflow_dispatch is present with no inputs (null in YAML).
     expect(Object.keys(workflow.on)).toContain('workflow_dispatch')
     expect(workflow.concurrency).toEqual({ group: 'mike-upstream-review-sync', 'cancel-in-progress': false })

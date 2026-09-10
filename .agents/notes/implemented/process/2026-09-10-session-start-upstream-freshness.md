@@ -1,0 +1,43 @@
+# Agent Note: Session-start upstream freshness check
+
+Status: implemented
+
+English | [中文](2026-09-10-session-start-upstream-freshness.zh.md)
+
+## Problem
+
+Mike's checkout tracks the fixed public upstream `deepseek-ai/deepseek-harness` on the `oh-mike-dsh` integration branch. A daily GitHub Actions schedule kept the fork's mirror current and proposed review PRs, but a platform cron is the wrong cadence primitive for a personal checkout: it fires whether or not Mike is working, GitHub disables schedules after prolonged inactivity, and — once one review PR is open and pending — a naive per-session check would repeat a network round trip every session with nothing to do. The cadence Mike chose is local-first: check upstream freshness cheaply when a session starts, no more than weekly, and keep the massive upstream PR open and unmerged meanwhile.
+
+## Decision
+
+The daily `on.schedule` trigger is removed from `.github/workflows/mike-upstream-sync.yml`; that workflow is now operator-initiated `workflow_dispatch` only, keeping its fork guard, single-queued concurrency, minimal `contents`/`pull-requests` write permissions, and trusted `oh-mike-dsh` checkout. Routine freshness moves to a per-clone helper, `.github/mike-upstream-sync/freshness.mjs`, invoked at custom-session start (`freshness-run.mjs`, or `--now` to force).
+
+The helper is a small Node ESM, git-only module with no new dependencies. It queries the fixed public upstream ONLY when the last successful check is missing, malformed, carries a future timestamp, identifies a different upstream, or is at least 7 days old, or when `--now` is passed. On a query it resolves a configured remote to upstream by canonical URL (ssh/https/`.git` forms compare equal) or, when no remote matches — the common fresh-fork case where `origin` is the fork — fetches the fixed public URL directly, never adding or renaming a remote. The fetch imports objects and writes only `FETCH_HEAD`; no local branch, `master`, or worktree ref is updated. The observed upstream head SHA is captured explicitly from `ls-remote`, and all ancestry comparisons use that immutable SHA rather than a mutable `FETCH_HEAD` another worktree could overwrite. It classifies the checkout against that SHA by git ancestry as up-to-date, updates-available, or history-diverged (no common base ⇒ migration needed, never an automatic merge), and prints one bounded, actionable line with a manual-review instruction.
+
+### Check state is per-clone and separate from integration
+
+The last SUCCESSFUL check is tracked separately from where upstream was last integrated: integration is derived from git ancestry against the observed head, while the check stamp records only that a query succeeded. A pending review PR therefore never forces an every-session network check. State lives per clone in the git common directory (shared across worktrees) as `mike-upstream-check.json`, outside versioned files so timestamps are never churn-committed. It records the upstream identity, the successful-check UTC instant, and the observed upstream default branch and head SHA — only the upstream OBSERVATION, never a stored "up-to-date" conclusion, because local integration can advance or rewind while the cache stays fresh. On a fresh-cache skip the helper recomputes ancestry against the CURRENT local HEAD offline and reports that classification; if the cached upstream object is not present locally (git pruned it, or a fresh worktree never fetched it) it reports only the raw observation, never a stale conclusion. The file is written atomically (temp + rename) and ONLY after a successful query, fetch, and ancestry read; a failed query, fetch, or parse leaves the previous stamp unchanged. A stamp identifying a different upstream is treated as absent, so a fetch of some other remote can never masquerade as a check of the fixed upstream, and a future timestamp is treated as stale rather than as permanent freshness.
+
+The helper reads no GitHub token or PAT and needs no `gh`; a missing `gh` never blocks the pure-git check. It performs no merge, push, PR mutation, or server restart. The manual `mike-upstream-sync.yml` workflow stays the only path that mirrors and proposes, and only when a human dispatches it.
+
+## Alternatives considered
+
+- **Keep the daily platform cron.** Rejected: it runs regardless of activity, GitHub disables it after inactivity, and it re-checks upstream even while a review PR is open with nothing to integrate. A session-start check aligns the cost with actual work.
+- **Check upstream on every session start.** Rejected: an open pending PR would then trigger a wasted network round trip every session. The 7-day successful-check window bounds the cost; `--now` covers the rare need to force.
+- **Derive freshness from the open review PR or from git integration state.** Rejected: integration state answers "is upstream merged", not "did we recently look". Conflating them would re-check on every session while a PR is pending. The check stamp is a distinct fact, tracked separately.
+- **Store the timestamp in a versioned file.** Rejected: committing a timestamp per clone churns history and collides across worktrees. The git common directory gives one per-clone home shared across worktrees and excluded from version control.
+- **Assume `origin` points at upstream.** Rejected: a fresh fork clone's `origin` is usually the fork. The helper matches upstream by canonical URL or fetches the fixed public URL, without adding or renaming remotes.
+- **Cache the "up-to-date" conclusion instead of the observation.** Rejected: local integration can advance or rewind while the cache stays fresh, so a stored conclusion goes stale without any upstream change. The cache holds only the upstream observation; the skip path recomputes ancestry against the current local HEAD offline, or reports the raw observation when the cached object is absent.
+- **Use `FETCH_HEAD` for the comparison.** Rejected: `FETCH_HEAD` is mutable and another worktree's fetch could overwrite it. The observed SHA is captured explicitly and used for every ancestry check.
+
+## Consequences
+
+- Upstream freshness is checked at most weekly per clone, aligned with when Mike actually works; no platform cron remains in the workflow. The remote schedule is only gone once the parent publishes this branch.
+- A pending upstream PR no longer causes repeated per-session network checks, because the successful-check stamp is separate from integration state.
+- Read-only checks run even on a dirty tree without stashing, cleaning, or editing user files; no branch ref or worktree file is ever touched by the fetch.
+- The helper never merges, pushes, mutates a PR, or restarts a server, and needs no GitHub credentials, so it introduces no new auth surface. History divergence is reported for manual migration, never auto-merged. Mike has explicitly deferred the large upstream PR, so a first `--now` check may report a large or diverged update; the helper only reports it and never integrates it or closes that PR.
+- This scopes the daily-cadence claim in the [upstream review-sync Agent Note](../feature/2026-09-09-mike-upstream-review-sync.md), which now describes the workflow as operator-initiated only.
+
+## Testing
+
+`.github/mike-upstream-sync/freshness.test.mjs` (`node:test`, run via `pnpm run test:mike-upstream-freshness` and registered in the executed root gate list) drives the policy with a fake command table, an injected clock, and temporary real git repositories — no network. It covers: a recent stamp skipping the network; a missing stamp, a `>= 7 day` stamp, and `--now` each querying; a failed query, fetch, or parse leaving the stamp unchanged; future, malformed, and wrong-upstream stamps not counting as fresh; a fresh cache recomputing ancestry offline against the current HEAD, reflecting a rewound local HEAD as updates-available (in both fake-command and real-git-reset form), and reporting only the observation when the cached object is absent; a real fetch leaving all branch refs, `HEAD`, and worktree files unchanged while importing the object; up-to-date, updates-available, and history-diverged classifications against real history; the atomic stamp write; git-common-directory placement shared across worktrees; canonical remote-slug matching and the fixed-URL fallback for a fork clone; and use of the explicit observed SHA. `scripts/mike-upstream-sync-workflow.spec.ts` additionally asserts the workflow carries no schedule and only `workflow_dispatch`, alongside the retained fork-guard, permissions, trusted-checkout, and unit-tested-entry assertions.
