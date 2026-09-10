@@ -38,6 +38,18 @@ export function octokitApi(github) {
       const { data } = await github.rest.git.getRef({ ...split(repo), ref: `heads/${branch}` })
       return data.object.sha
     },
+    async getBranchShaOrNull(repo, branch) {
+      try {
+        const { data } = await github.rest.git.getRef({ ...split(repo), ref: `heads/${branch}` })
+        return data.object.sha
+      } catch (err) {
+        // Only a genuine 404 means the ref is missing. Any other status (403
+        // workflows-scope denial, network, 5xx) must propagate so the caller
+        // never creates a ref over a branch whose state is unknown.
+        if (err && typeof err === 'object' && 'status' in err && err.status === 404) return null
+        throw err
+      }
+    },
     async updateRef(repo, ref, sha) {
       await github.rest.git.updateRef({ ...split(repo), ref, sha, force: false })
     },
@@ -50,7 +62,13 @@ export function octokitApi(github) {
     },
     async listPulls(repo, opts) {
       const { data } = await github.rest.pulls.list({ ...split(repo), base: opts.base, state: opts.state, head: opts.head })
-      return data.map(pull => ({ number: pull.number, head: { ref: pull.head.ref, sha: pull.head.sha }, base: { ref: pull.base.ref }, draft: pull.draft }))
+      return data.map(pull => ({
+        number: pull.number,
+        title: pull.title,
+        head: { ref: pull.head.ref, sha: pull.head.sha, repoFullName: pull.head.repo?.full_name },
+        base: { ref: pull.base.ref },
+        draft: pull.draft,
+      }))
     },
     async createPull(repo, opts) {
       const { data } = await github.rest.pulls.create({ ...split(repo), title: opts.title, head: opts.head, base: opts.base, body: opts.body, draft: opts.draft })

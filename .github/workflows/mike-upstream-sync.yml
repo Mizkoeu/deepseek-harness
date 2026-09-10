@@ -5,34 +5,37 @@
 # NEVER merges, force-pushes, deploys, or writes upstream/settings/reviews. All
 # policy lives in .github/mike-upstream-sync/sync.mjs (unit-tested).
 #
-# CI CANNOT VALIDATE THESE PRs AUTOMATICALLY. This repository's pull_request CI
-# runs on team-only runners (`dsh-ubuntu-24-04-16core` and self-hosted pools)
-# that do not exist on a personal fork, so bot PRs will not show green checks
-# here. Review requires MANUAL local validation; the parent must also set up
-# runners if fork CI is ever wanted. See the Agent Note
-# 2026-09-09-mike-upstream-review-sync.md.
+# CI on these PRs is NOT a reliable pass/fail signal. This repository's
+# pull_request CI runs on team-only runners (`dsh-ubuntu-24-04-16core` and
+# self-hosted pools) that do not exist on a personal fork, so those inherited
+# jobs cannot run there and their checks stay missing or pending. Missing or
+# pending checks are NOT passes. Review requires MANUAL local validation; the
+# repository operator must set up compatible runners if fork CI is ever wanted.
+# See the Agent Note 2026-09-09-mike-upstream-review-sync.md.
 #
 # GITHUB_TOKEN limits (current GitHub behavior, verified against
 # https://docs.github.com/actions/using-workflows/triggering-a-workflow):
 # a PR opened by GITHUB_TOKEN CAN trigger pull_request workflows, but such runs
 # REQUIRE manual approval. Combined with the unavailable runners above, treat
 # check status on these PRs as "not run" until a human validates locally. New
-# fork Actions may also need to be enabled and allowed to create PRs; the parent
-# configures that after publish. Scheduled runs can be delayed under load and
-# GitHub disables schedules after ~60 days of repository inactivity.
+# fork Actions may also need to be enabled and allowed to create PRs; the
+# repository operator configures that after publication. Scheduled runs can be
+# delayed under load and GitHub disables schedules after ~60 days of inactivity.
 #
-# KNOWN LIMITATION — updating refs whose diff touches .github/workflows/**:
-# GITHUB_TOKEN cannot create or update workflow files. When the upstream head
-# this sync mirrors (or the reserved import branch it creates) differs from the
-# fork in any .github/workflows/** file, the ref write is rejected server-side
+# KNOWN LIMITATION — writing refs whose diff touches .github/workflows/**:
+# GITHUB_TOKEN cannot create or update workflow files, and the `workflows` scope
+# is NOT grantable to it by any permissions key. When the upstream head this sync
+# mirrors, or the reserved import branch it creates, differs from the fork in any
+# .github/workflows/** file, that ref write can be rejected server-side
 # ("refusing to allow a GitHub App to create or update workflow ... without
-# workflows permission"), and the `workflows` scope is NOT grantable to
-# GITHUB_TOKEN by any permissions key. The mirror advance and import-branch
-# creation therefore succeed only while upstream's workflow files are unchanged;
-# a workflow-touching upstream update fails loud and needs a human (a manual
-# push, or a PAT/GitHub App with `workflows` deliberately provisioned by the
-# parent — NOT auto-copied here). This automation ships no such credential. See
-# the Agent Note's auth-limitation section.
+# workflows permission"). Community reports indicate creating a NEW branch and
+# updating an EXISTING ref can behave differently, so this is a real, observed
+# policy limit rather than a guarantee that every workflow-touching update fails;
+# the actual result is confirmed by live dispatch after publication. Either way
+# the sync does NOT silently claim success: a rejected write fails loud and needs
+# a human (a manual push, or a PAT/GitHub App with `workflows` deliberately
+# provisioned by the operator — NEVER auto-copied from the runner token here).
+# This automation ships no such credential. See the Agent Note's auth section.
 name: mike upstream review sync
 
 on:

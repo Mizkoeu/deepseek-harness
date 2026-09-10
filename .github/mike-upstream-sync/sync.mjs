@@ -26,10 +26,11 @@
  * @typedef {object} SyncApi
  * @property {(repo: string) => Promise<{ fork: boolean, parent?: { full_name: string }, default_branch: string }>} getRepo
  * @property {(repo: string, branch: string) => Promise<string>} getBranchSha Resolve a branch to its commit SHA; rejects if the branch is absent.
+ * @property {(repo: string, branch: string) => Promise<string | null>} getBranchShaOrNull Resolve a branch to its commit SHA, or null ONLY for a genuine 404 (missing ref). Any other failure (403, network, 5xx) rejects.
  * @property {(repo: string, ref: string, sha: string) => Promise<void>} updateRef Fast-forward-or-fail ref update (force:false); rejects on divergence.
  * @property {(repo: string, ref: string, sha: string) => Promise<void>} createRef Create a new ref; rejects if it already exists.
  * @property {(repo: string, base: string, head: string) => Promise<'ahead' | 'behind' | 'identical' | 'diverged'>} compare Compare base...head at the commit level.
- * @property {(repo: string, opts: { base: string, state: 'open' | 'closed', head?: string }) => Promise<Array<{ number: number, head: { ref: string, sha: string }, base: { ref: string }, draft: boolean }>>} listPulls
+ * @property {(repo: string, opts: { base: string, state: 'open' | 'closed', head?: string }) => Promise<Array<{ number: number, title: string, head: { ref: string, sha: string, repoFullName?: string }, base: { ref: string }, draft: boolean }>>} listPulls
  * @property {(repo: string, opts: { title: string, head: string, base: string, body: string, draft: boolean }) => Promise<{ number: number }>} createPull
  */
 
@@ -57,6 +58,23 @@ export function importBranchName(prefix, sha) {
  */
 export function isImportBranch(prefix, ref) {
   return ref.startsWith(prefix) && /^[0-9a-f]{40}$/.test(ref.slice(prefix.length))
+}
+
+/**
+ * Is a pull request one this automation owns? All three must hold, so an
+ * unrelated PR that merely shares one trait is never honored: its head branch
+ * is a prefix+full-SHA import branch, its head lives in the fork itself (not a
+ * cross-fork contribution), and its title carries the automation marker.
+ * @param {SyncConfig} config
+ * @param {{ title: string, head: { ref: string, repoFullName?: string } }} pull
+ * @returns {boolean}
+ */
+export function isOwnedReviewPull(config, pull) {
+  const sameRepoHead = pull.head.repoFullName === undefined
+    || normalizeRepo(pull.head.repoFullName) === normalizeRepo(config.fork)
+  return isImportBranch(config.prBranchPrefix, pull.head.ref)
+    && sameRepoHead
+    && pull.title.startsWith(PR_TITLE_PREFIX)
 }
 
 /**
@@ -168,7 +186,7 @@ async function maintainReviewPull(config, api, upstreamSha) {
   }
 
   const openOwned = (await api.listPulls(config.fork, { base: config.integrationBranch, state: 'open' }))
-    .filter(pull => isImportBranch(config.prBranchPrefix, pull.head.ref))
+    .filter(pull => isOwnedReviewPull(config, pull))
   if (openOwned.length > 0) {
     return { created: false, reason: `open review PR #${openOwned[0].number} awaiting review; update queued` }
   }
@@ -198,18 +216,14 @@ async function maintainReviewPull(config, api, upstreamSha) {
  * Create the reserved import branch at the upstream head, or reuse it when it
  * already points at exactly that SHA (idempotent recovery). A ref that exists
  * at a DIFFERENT SHA rejects without overwriting: the sync never force-pushes.
+ * Only a genuine 404 (missing ref) leads to creation; a 403, network error, or
+ * 5xx propagates with ZERO createRef, so a transient failure never races a
+ * create against a branch that may already exist.
  */
 async function ensureImportBranch(config, api, branch, upstreamSha) {
-  let existing
-  try {
-    existing = await api.getBranchSha(config.fork, branch)
-  } catch {
-    // Branch absent: create it. getBranchSha rejects only for a missing ref
-    // here; a transport failure would resurface on createRef below.
-    existing = undefined
-  }
+  const existing = await api.getBranchShaOrNull(config.fork, branch)
   if (existing === upstreamSha) return
-  if (existing !== undefined) {
+  if (existing !== null) {
     throw new Error(`import branch ${branch} exists at ${existing}, expected ${upstreamSha}; refusing to overwrite`)
   }
   await api.createRef(config.fork, `refs/heads/${branch}`, upstreamSha)

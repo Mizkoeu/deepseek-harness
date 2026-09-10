@@ -10,7 +10,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
-import { assertForkGuard, importBranchName, isImportBranch, prBody, PR_TITLE_PREFIX, runSync } from './sync.mjs'
+import { assertForkGuard, importBranchName, isImportBranch, isOwnedReviewPull, prBody, PR_TITLE_PREFIX, runSync } from './sync.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -46,6 +46,13 @@ function fakeApi(state) {
       if (sha === undefined) throw new Error(`404 no ref ${repo}#${branch}`)
       return sha
     },
+    async getBranchShaOrNull(repo, branch) {
+      // A test can inject a non-404 failure for a specific branch to prove it
+      // propagates instead of being treated as "missing".
+      if (state.branchError && state.branchError.branch === branch) throw state.branchError.error
+      const sha = state.branches[key(repo, branch)]
+      return sha === undefined ? null : sha
+    },
     async updateRef(repo, ref, sha) {
       // SECURITY INVARIANT: writes only target the fork, never the integration branch.
       assert.equal(repo, CONFIG.fork, 'updateRef must only write the fork')
@@ -68,6 +75,13 @@ function fakeApi(state) {
       return (state.pulls ?? [])
         .filter(p => p.state === opts.state && p.base.ref === opts.base)
         .filter(p => !opts.head || `${repo.split('/')[0]}:${p.head.ref}` === opts.head)
+        .map(p => ({
+          // Default an owned title and same-repo head unless the fixture
+          // overrides them, so classification-specific tests stay explicit.
+          title: `${PR_TITLE_PREFIX}update`,
+          ...p,
+          head: { repoFullName: CONFIG.fork, ...p.head },
+        }))
     },
     async createPull(repo, opts) {
       assert.equal(repo, CONFIG.fork, 'createPull must only target the fork')
@@ -217,6 +231,36 @@ test('branch collision at different SHA rejects without overwriting', async () =
   assert.deepEqual(calls.createPull, [])
 })
 
+test('a non-404 error resolving the import branch propagates with ZERO createRef', async () => {
+  const branch = importBranchName(CONFIG.prBranchPrefix, UPSTREAM_SHA)
+  for (const error of [Object.assign(new Error('403 workflows scope'), { status: 403 }), new Error('ECONNRESET'), Object.assign(new Error('502'), { status: 502 })]) {
+    const { api, calls } = fakeApi({
+      branches: {
+        'MizkoEu/deepseek-harness#master': UPSTREAM_SHA,
+        'deepseek-ai/deepseek-harness#master': UPSTREAM_SHA,
+        'MizkoEu/deepseek-harness#oh-mike-dsh': OLD_MIRROR_SHA,
+      },
+      branchError: { branch, error },
+    })
+    await assert.rejects(runSync(CONFIG, api), err => err === error)
+    assert.deepEqual(calls.createRef, [], 'must not createRef when branch state is unknown')
+    assert.deepEqual(calls.createPull, [])
+  }
+})
+
+test('a genuine 404 (missing import branch) creates it and opens the PR', async () => {
+  const { api, calls } = fakeApi({
+    branches: {
+      'MizkoEu/deepseek-harness#master': UPSTREAM_SHA,
+      'deepseek-ai/deepseek-harness#master': UPSTREAM_SHA,
+      'MizkoEu/deepseek-harness#oh-mike-dsh': OLD_MIRROR_SHA,
+    },
+  })
+  const summary = await runSync(CONFIG, api)
+  assert.equal(calls.createRef.length, 1, 'missing branch is created')
+  assert.equal(summary.pr.created, true)
+})
+
 test('incorrect fork parent is rejected', () => {
   assert.throws(
     () => assertForkGuard(CONFIG, { fork: true, parent: { full_name: 'someone/else' } }),
@@ -261,6 +305,20 @@ test('isImportBranch requires prefix + full 40-hex SHA', () => {
   assert.equal(isImportBranch(p, `${p}${'g'.repeat(40)}`), false, 'non-hex')
   assert.equal(isImportBranch(p, `${p}${'A'.repeat(40)}`), false, 'uppercase is not a git SHA form we emit')
   assert.equal(isImportBranch(p, 'other/branch'), false)
+})
+
+test('isOwnedReviewPull requires import branch, same-repo head, AND marker title', () => {
+  const ownedBranch = importBranchName(CONFIG.prBranchPrefix, UPSTREAM_SHA)
+  const owned = { title: `${PR_TITLE_PREFIX}x`, head: { ref: ownedBranch, repoFullName: CONFIG.fork } }
+  assert.equal(isOwnedReviewPull(CONFIG, owned), true)
+  // Same import-branch name but authored from a different fork: not ours.
+  assert.equal(isOwnedReviewPull(CONFIG, { ...owned, head: { ...owned.head, repoFullName: 'stranger/deepseek-harness' } }), false)
+  // Import-branch name and same repo but no automation marker: not ours.
+  assert.equal(isOwnedReviewPull(CONFIG, { ...owned, title: 'Manual: update' }), false)
+  // Ordinary feature branch with the marker: not ours (head is not an import branch).
+  assert.equal(isOwnedReviewPull(CONFIG, { title: `${PR_TITLE_PREFIX}x`, head: { ref: 'mike/upstream-review-sync', repoFullName: CONFIG.fork } }), false)
+  // Same-repo head SHA form is case-insensitive on the repo slug.
+  assert.equal(isOwnedReviewPull(CONFIG, { ...owned, head: { ...owned.head, repoFullName: 'mizkoeu/deepseek-harness' } }), true)
 })
 
 test('workflow checks out the trusted oh-mike-dsh branch, NOT the master mirror', () => {
