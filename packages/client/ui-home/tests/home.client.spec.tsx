@@ -37,7 +37,7 @@ function summary(over: Omit<Partial<SessionSummary>, 'id'> & { id: string }): Se
     updatedAt: Date.now(),
     ...over,
     id: sid(over.id),
-  } as SessionSummary
+  }
 }
 
 /** Idle timestamp older than the 7-day staleness threshold. */
@@ -74,8 +74,8 @@ function renderOverlay(
   const view = render(
     <HomeOverlay
       {...hooks(list, opts.archived)}
-      useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true })) as never}
-      actions={{ setOpen: vi.fn(), toggle: vi.fn() } as never}
+      useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true }))}
+      actions={{ setOpen: vi.fn(), toggle: vi.fn() }}
       open={open as never}
       archive={archive as never}
     />,
@@ -102,8 +102,8 @@ describe('Home launcher badge', () => {
       <HomeLauncher
         wide
         {...hooks(list)}
-        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: false })) as never}
-        actions={{ setOpen: vi.fn(), toggle: vi.fn() } as never}
+        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: false }))}
+        actions={{ setOpen: vi.fn(), toggle: vi.fn() }}
       />,
     )
     // Two block: the pending-approval and the blocked-goal; the running,
@@ -118,7 +118,7 @@ describe('Home launcher badge', () => {
       <HomeLauncher
         wide
         {...hooks([])}
-        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel(store.getSnapshot())) as never}
+        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel(store.getSnapshot()))}
         actions={store.actions as never}
       />,
     )
@@ -131,8 +131,8 @@ describe('Home launcher badge', () => {
       <HomeLauncher
         wide={false}
         {...hooks([summary({ id: 'p', pendingInteraction: 'approval' })])}
-        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true })) as never}
-        actions={{ setOpen: vi.fn(), toggle: vi.fn() } as never}
+        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true }))}
+        actions={{ setOpen: vi.fn(), toggle: vi.fn() }}
       />,
     )
     const button = screen.getByRole('button', { name: 'Home' })
@@ -279,8 +279,8 @@ describe('Home overlay row actions', () => {
     render(
       <HomeOverlay
         {...hooks([summary({ id: 's', pendingInteraction: 'approval' })])}
-        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true })) as never}
-        actions={{ setOpen, toggle: vi.fn() } as never}
+        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true }))}
+        actions={{ setOpen, toggle: vi.fn() }}
         open={vi.fn() as never}
         archive={(vi.fn(async () => {})) as never}
       />,
@@ -294,8 +294,8 @@ describe('Home overlay row actions', () => {
     const { container } = render(
       <HomeOverlay
         {...hooks([summary({ id: 's', pendingInteraction: 'approval' })])}
-        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true })) as never}
-        actions={{ setOpen, toggle: vi.fn() } as never}
+        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: true }))}
+        actions={{ setOpen, toggle: vi.fn() }}
         open={vi.fn() as never}
         archive={(vi.fn(async () => {})) as never}
       />,
@@ -312,8 +312,8 @@ describe('Home overlay row actions', () => {
     render(
       <HomeOverlay
         {...hooks([summary({ id: 's', pendingInteraction: 'approval' })])}
-        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: false })) as never}
-        actions={{ setOpen: vi.fn(), toggle: vi.fn() } as never}
+        useStore={(<T,>(sel: (s: { open: boolean }) => T) => sel({ open: false }))}
+        actions={{ setOpen: vi.fn(), toggle: vi.fn() }}
         open={vi.fn() as never}
         archive={(vi.fn(async () => {})) as never}
       />,
