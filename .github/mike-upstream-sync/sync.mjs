@@ -1,4 +1,4 @@
-// Daily/manual upstream-mirror maintenance for Mike's public fork.
+// Manual upstream-mirror maintenance for Mike's public fork.
 //
 // This module runs only on the fork MizkoEu/deepseek-harness. It force-free
 // mirrors the upstream default branch onto the fork's mirror branch and, when

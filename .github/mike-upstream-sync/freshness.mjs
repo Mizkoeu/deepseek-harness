@@ -145,42 +145,77 @@ export async function resolveFetchSource(env) {
  * @returns {Promise<{ defaultBranch: string, sha: string }>}
  */
 export async function fetchUpstreamHead(env, source) {
-  // Discover the upstream default branch without checking anything out.
+  // One ls-remote --symref for HEAD returns BOTH the symref line naming the
+  // default branch AND the resolved HEAD SHA, so the branch and its exact commit
+  // are captured together from a single view of the remote.
   const head = await env.git(['ls-remote', '--symref', source, 'HEAD'])
   const refMatch = head.stdout.match(/^ref:\s+refs\/heads\/(\S+)\s+HEAD$/m)
   if (!refMatch) throw new Error('could not resolve upstream default branch')
   const defaultBranch = refMatch[1]
-  // Import objects only. No refspec target, so no local branch is created or
-  // moved; only FETCH_HEAD is written. The result SHA is read from ls-remote,
-  // not FETCH_HEAD, so it is stable regardless of concurrent worktree fetches.
-  await env.git(['fetch', '--no-tags', source, defaultBranch])
-  const shaOut = await env.git(['ls-remote', source, `refs/heads/${defaultBranch}`])
-  const shaMatch = shaOut.stdout.match(/^([0-9a-f]{40})\s/)
+  const shaMatch = head.stdout.match(/^([0-9a-f]{40})\s+HEAD$/m)
   if (!shaMatch) throw new Error('could not resolve upstream head SHA')
-  return { defaultBranch, sha: shaMatch[1] }
+  const sha = shaMatch[1]
+  // Fetch that EXACT SHA, never a branch name: a branch refspec could import a
+  // newer head that moved after discovery (returning a SHA that was never
+  // fetched) and could update a remote-tracking ref like origin/master. Fetching
+  // the pinned SHA with no destination writes objects and FETCH_HEAD only — no
+  // local branch or remote-tracking ref moves — and guarantees the observed SHA
+  // is the one imported. Verify the object landed before trusting it.
+  await env.git(['fetch', '--no-tags', source, sha])
+  await env.git(['cat-file', '-e', `${sha}^{commit}`])
+  return { defaultBranch, sha }
 }
 
+/** The integration ref this check always classifies against, never a feature HEAD. */
+export const INTEGRATION_REF = 'refs/heads/oh-mike-dsh'
+
 /**
- * Classify the local HEAD against an explicit observed upstream SHA using git
- * ancestry. `up-to-date` means the observed head is already an ancestor of HEAD
- * (local integration is at or beyond it); `updates-available` means HEAD is an
- * ancestor of the observed head; `history-diverged` means neither is an ancestor
- * of the other, or the objects share no common base — a migration a human must
- * resolve, never an automatic merge.
+ * Classify the local INTEGRATION branch against an explicit observed upstream
+ * SHA using git ancestry. The target is always `refs/heads/oh-mike-dsh`, never
+ * the checked-out HEAD: a session on a feature branch ahead of `oh-mike-dsh`
+ * must not report the integration branch as current.
+ *
+ * `up-to-date` means the observed head is already an ancestor of the integration
+ * branch. Otherwise, when the two share a merge base — the normal fork case of
+ * local custom commits plus new upstream commits — it is `updates-available`.
+ * `history-diverged` is returned ONLY when they share no common ancestor at all
+ * (a fresh unrelated history or a proven upstream rewrite), which needs manual
+ * migration and never an automatic merge. Any git error other than "no merge
+ * base" propagates and leaves the stamp unadvanced.
  * @param {FreshnessEnv} env
  * @param {string} observedSha Explicit upstream head SHA captured at fetch time.
+ * @param {string} [integrationRef] Ref to classify; defaults to INTEGRATION_REF.
  * @returns {Promise<'up-to-date' | 'updates-available' | 'history-diverged'>}
  */
-export async function classify(env, observedSha) {
-  if (await isAncestor(env, observedSha, 'HEAD')) return 'up-to-date'
-  if (await isAncestor(env, 'HEAD', observedSha)) return 'updates-available'
-  return 'history-diverged'
+export async function classify(env, observedSha, integrationRef = INTEGRATION_REF) {
+  if (await isAncestor(env, observedSha, integrationRef)) return 'up-to-date'
+  return (await hasMergeBase(env, observedSha, integrationRef)) ? 'updates-available' : 'history-diverged'
 }
 
 /**
- * Is `ancestor` an ancestor of `descendant`? Git exits 0 for yes, 1 for no;
- * any other exit (missing object, no common history reported as error) rejects
- * and is handled by the caller as a diverged/unknown outcome.
+ * Do two commits share any common ancestor? `git merge-base` exits 0 and prints
+ * a base when they do, and exits 1 with empty output when they share none. Any
+ * other failure (missing object, bad ref) propagates so a real error never
+ * masquerades as divergence.
+ * @param {FreshnessEnv} env
+ * @param {string} a
+ * @param {string} b
+ * @returns {Promise<boolean>}
+ */
+async function hasMergeBase(env, a, b) {
+  try {
+    const { stdout } = await env.git(['merge-base', a, b])
+    return stdout.trim().length > 0
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 1) return false
+    throw err
+  }
+}
+
+/**
+ * Is `ancestor` an ancestor of `descendant`? Git exits 0 for yes, 1 for no; any
+ * other exit (missing object, bad ref) rejects and propagates so a real error is
+ * never misread as an ancestry answer.
  * @param {FreshnessEnv} env
  * @param {string} ancestor
  * @param {string} descendant
@@ -213,7 +248,7 @@ export function formatResult(status, observedSha) {
     case 'updates-available':
       return `upstream updates available at ${short}; review and integrate via the operator-initiated workflow (see dsh-mike-branch-workflow).`
     case 'history-diverged':
-      return `upstream history diverged from local at ${short}; migration needed — resolve manually, never merge automatically.`
+      return `upstream at ${short} shares no common ancestor with oh-mike-dsh; migration needed — resolve manually, never merge automatically.`
     default:
       return status
   }
@@ -255,8 +290,8 @@ async function objectExists(env, sha) {
 /**
  * Build a result from a fresh cache without any network access. The cache holds
  * only the upstream observation, so ancestry is recomputed against the CURRENT
- * local HEAD; when the cached object is not present locally, only the raw
- * observation is reported, never a stale conclusion.
+ * `oh-mike-dsh` integration ref; when the cached object is not present locally,
+ * only the raw observation is reported, never a stale conclusion.
  * @param {FreshnessEnv} env
  * @param {CheckState} state
  * @returns {Promise<CachedResult>}
@@ -283,9 +318,10 @@ async function classifyFromCache(env, state) {
  * OBSERVATION (identity, time, default branch, head SHA), never a stored
  * conclusion, because local integration can advance or rewind while the cache
  * stays fresh. The skip path therefore recomputes ancestry against the CURRENT
- * local HEAD offline and returns a fresh classification; if the cached upstream
- * object is not present locally (for example, git pruned it or this is a fresh
- * worktree), it returns the raw observation without a stale conclusion.
+ * `oh-mike-dsh` integration ref offline and returns a fresh classification; if
+ * the cached upstream object is not present locally (for example, git pruned it
+ * or this is a fresh worktree), it returns the raw observation without a stale
+ * conclusion.
  *
  * Otherwise it resolves the upstream source, fetches objects, classifies against
  * the explicit observed SHA, and — only on full success — atomically writes the
