@@ -1,0 +1,97 @@
+// Runtime entry for the upstream-sync workflow. Adapts the actions/github-script
+// Octokit client to the injectable SyncApi in sync.mjs and runs one cycle.
+//
+// This file performs NO logic decisions: it only maps REST calls to the SyncApi
+// surface and logs the structured summary. All policy lives in sync.mjs so it is
+// unit-testable with a fake API. The workflow passes the authenticated `github`
+// Octokit and `core` logger from actions/github-script.
+
+import { runSync } from './sync.mjs'
+
+/** Fixed automation configuration. Repos and branches are constants, not secrets. */
+export const CONFIG = {
+  fork: 'MizkoEu/deepseek-harness',
+  upstream: 'deepseek-ai/deepseek-harness',
+  integrationBranch: 'oh-mike-dsh',
+  mirrorBranch: 'master',
+  prBranchPrefix: 'mike/upstream-',
+}
+
+/** Split "owner/name" into Octokit's { owner, repo } arguments. */
+function split(repo) {
+  const [owner, name] = repo.split('/')
+  return { owner, repo: name }
+}
+
+/**
+ * Build the SyncApi from an Octokit client.
+ * @param {import('@octokit/rest').Octokit} github
+ * @returns {import('./sync.mjs').SyncApi}
+ */
+export function octokitApi(github) {
+  return {
+    async getRepo(repo) {
+      const { data } = await github.rest.repos.get(split(repo))
+      return { fork: data.fork, parent: data.parent ? { full_name: data.parent.full_name } : undefined, default_branch: data.default_branch }
+    },
+    async getBranchSha(repo, branch) {
+      const { data } = await github.rest.git.getRef({ ...split(repo), ref: `heads/${branch}` })
+      return data.object.sha
+    },
+    async getBranchShaOrNull(repo, branch) {
+      try {
+        const { data } = await github.rest.git.getRef({ ...split(repo), ref: `heads/${branch}` })
+        return data.object.sha
+      } catch (err) {
+        // Only a genuine 404 means the ref is missing. Any other status (403
+        // workflows-scope denial, network, 5xx) must propagate so the caller
+        // never creates a ref over a branch whose state is unknown.
+        if (err && typeof err === 'object' && 'status' in err && err.status === 404) return null
+        throw err
+      }
+    },
+    async updateRef(repo, ref, sha) {
+      await github.rest.git.updateRef({ ...split(repo), ref, sha, force: false })
+    },
+    async createRef(repo, ref, sha) {
+      await github.rest.git.createRef({ ...split(repo), ref, sha })
+    },
+    async compare(repo, base, head) {
+      const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...split(repo), basehead: `${base}...${head}` })
+      return data.status
+    },
+    async listPulls(repo, opts) {
+      // Paginate: the one-open-PR invariant would break if an owned import PR
+      // sat beyond the default first page of 30.
+      const pulls = await github.paginate(github.rest.pulls.list, {
+        ...split(repo),
+        base: opts.base,
+        state: opts.state,
+        head: opts.head,
+        per_page: 100,
+      })
+      return pulls.map(pull => ({
+        number: pull.number,
+        title: pull.title,
+        head: { ref: pull.head.ref, sha: pull.head.sha, repoFullName: pull.head.repo?.full_name },
+        base: { ref: pull.base.ref },
+        draft: pull.draft,
+      }))
+    },
+    async createPull(repo, opts) {
+      const { data } = await github.rest.pulls.create({ ...split(repo), title: opts.title, head: opts.head, base: opts.base, body: opts.body, draft: opts.draft })
+      return { number: data.number }
+    },
+  }
+}
+
+/**
+ * actions/github-script entry. Runs the sync and logs a structured summary.
+ * @param {{ github: import('@octokit/rest').Octokit, core: { info: (m: string) => void } }} ctx
+ */
+export async function main({ github, core }) {
+  const summary = await runSync(CONFIG, octokitApi(github))
+  core.info(`upstream head: ${summary.upstreamSha}`)
+  core.info(`mirror advanced: ${summary.mirrored}`)
+  core.info(`review PR: ${summary.pr.reason}${summary.pr.number ? ` (#${summary.pr.number})` : ''}`)
+}

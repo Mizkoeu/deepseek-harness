@@ -18,7 +18,7 @@ Feature branches use the flat `mike/<topic>` prefix rather than `oh-mike-dsh/<to
 
 - **Commit directly on `master`.** Rejected: it diverges the upstream-tracking branch, makes pulling or rebasing from `origin` conflict-prone, and risks an accidental push of private work upstream.
 - **Rebase feature branches into linear history** (or squash on merge). Rejected: `--no-ff` preserves the per-feature boundary and merge points that make a personal integration branch auditable and each feature independently revertable; linear or squashed history erases that grouping.
-- **A personal fork with PRs.** Deferred: heavier than needed while work stays local; the workflow defers publication until a destination is explicitly authorized, at which point a fork or remote can be added without changing the branch model.
+- **A personal fork with PRs.** Deferred: heavier than needed while work stays local; the workflow defers publication until a destination is explicitly authorized, at which point a fork or remote can be added without changing the branch model. Once published, the [upstream review-sync automation](../feature/2026-09-09-mike-upstream-review-sync.md) realizes this model for upstream maintenance.
 
 ## Consequences
 
