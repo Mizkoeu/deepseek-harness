@@ -14,12 +14,16 @@ import {
   assertFinalWorkspaceSnapshot, assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import {
+  connectFreshWorkspace, enterPhoneViewport, measureCardContainment, newEnglishPage, phoneContainmentGolden, saveFailureShot,
+} from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/approval-composer', import.meta.url))
 const FIXTURE = join(SNAPSHOT_DIR, 'session.v3.jsonl')
 // The golden covers the stable waiting panel; direct assertions cover its answer.
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
+// Portrait phone containment of the same waiting panel.
+const MOBILE_EXPECTED = join(SNAPSHOT_DIR, 'mobile.expected.md')
 const MODE = webSnapshotMode()
 
 // Unrelated tokens keep the recorded model from compressing the payload into a
@@ -116,6 +120,12 @@ describe.each(MODE === 'record' ? ['button'] as const : ['button', 'keyboard'] a
         expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.viewport)
         expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.cardBottom)
       }
+      // Portrait phone: the full-width conversation keeps both decisions
+      // inside the card and the card inside the viewport.
+      await enterPhoneViewport(page)
+      const phone = await measureCardContainment(scroll.locator('xpath=..'))
+      expect(phone).toEqual({ cardInside: true, buttonsInside: true, actionsOnScreen: true, pageOverflow: false })
+      await compareOrRefreshGolden(MOBILE_EXPECTED, phoneContainmentGolden('Approval panel on a portrait phone', phone), MODE)
       await page.setViewportSize(original)
     }
 
@@ -146,6 +156,6 @@ describe.each(MODE === 'record' ? ['button'] as const : ['button', 'keyboard'] a
   }, 300_000)
 
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['session.v3.jsonl', 'ui.expected.md', 'workspace.expected'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['mobile.expected.md', 'session.v3.jsonl', 'ui.expected.md', 'workspace.expected'])
   })
 })
