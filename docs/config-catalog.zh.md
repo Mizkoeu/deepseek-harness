@@ -4264,6 +4264,31 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-perplexity -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web-search-tavily -->
+<a id="deepseek-aidsh-web-search-tavily"></a>
+
+## `@deepseek-ai/dsh-web-search-tavily`
+
+- `inject`: `web`
+- `source`: [`packages/web/web-search-tavily/src/index.ts:40`](../packages/web/web-search-tavily/src/index.ts)
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /** Tavily API key. Falls back to `$TAVILY_API_KEY`. Empty → provider unavailable. */
+  apiKey?: string
+  /** Endpoint base; `/search` is appended. Defaults to the public API. */
+  baseURL?: string
+  /** Retrieval depth sent as Tavily's `search_depth`. Defaults to `basic`. */
+  searchDepth?: 'basic' | 'advanced'
+  /** Search category sent as Tavily's `topic`. Defaults to `general`. */
+  topic?: 'general' | 'news' | 'finance'
+  /** Request Tavily's synthesized answer, mapped to `content`. Defaults to false. */
+  includeAnswer?: boolean
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-web-search-tavily -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-webhook-github -->
 <a id="deepseek-aidsh-webhook-github"></a>
 

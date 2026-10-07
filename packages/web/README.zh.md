@@ -22,13 +22,14 @@ kind: "package-group"
 <a id="packages"></a>
 ## 包
 
-六个包分别承担 web 角色；完整词汇与约定以子系统参考文档为准。
+七个包分别承担 web 角色；完整词汇与约定以子系统参考文档为准。
 
 | 包 | 职责 | ctx 键 |
 |---|---|---|
 | [`web/`](web/README.zh.md) | 搜索与抓取服务：通过可互换的后端搜索与抓取 URL，统一选择与错误策略 | `ctx.web` |
 | [`web-search-exa/`](web-search-exa/README.zh.md) | 通过 Exa 搜索 web | 注册到 `ctx.web` |
 | [`web-search-perplexity/`](web-search-perplexity/README.zh.md) | 通过 Perplexity 搜索 web | 注册到 `ctx.web` |
+| [`web-search-tavily/`](web-search-tavily/README.zh.md) | 通过 Tavily 搜索 web | 注册到 `ctx.web` |
 | [`web-search-deepseek/`](web-search-deepseek/README.zh.md) | 通过 DeepSeek 原生搜索搜索 web | 注册到 `ctx.web` |
 | [`web-fetch-http/`](web-fetch-http/README.zh.md) | 匿名抓取公共 HTTP(S) 页面 | 注册到 `ctx.web` |
 | [`tool-web/`](tool-web/README.zh.md) | 向模型公开 `web_search` 与 `web_fetch` | 注册到 `ctx.tools` |
