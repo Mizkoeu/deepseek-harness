@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-08-19-web-inline-mermaid-diagrams.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-19-web-inline-mermaid-diagrams.md
+/agent-note-inline-mermaid-diagrams-in-assistant-markdown:
+  en: 1113de7c6eca3171
+  zh: cb7e2b9e964aefd4
+/agent-note-inline-mermaid-diagrams-in-assistant-markdown/problem:
+  en: 119ef551374469ce
+  zh: 43f619c3adc4c454
+/agent-note-inline-mermaid-diagrams-in-assistant-markdown/decision:
+  en: 979b6a9e1e285d0e
+  zh: 32a9a4c726f4013b
+/agent-note-inline-mermaid-diagrams-in-assistant-markdown/alternatives-considered:
+  en: 61975803323d1052
+  zh: a0cb0e9670d30be3
+/agent-note-inline-mermaid-diagrams-in-assistant-markdown/consequences:
+  en: 42fbe0837e89a384
+  zh: 75a16d45847d38d7
+/agent-note-inline-mermaid-diagrams-in-assistant-markdown/testing:
+  en: 98805b6e46a30040
+  zh: 9b44f1c69105a5db

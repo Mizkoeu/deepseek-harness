@@ -1,0 +1,50 @@
+- banner:
+  - navigation "Session hierarchy": Diagrams and math
+  - button "More actions"
+  - button "Open right sidebar"
+  - tablist:
+    - tab "Chat" [selected]
+    - tab "Trajectory"
+- text: Draw the diagrams and typeset the math. {{clock}}
+- button "Copy"
+- status: Completed
+- button "Completed in {{duration}}" [disabled]
+- heading "Diagrams and math" [level=1]
+- text: mermaid
+- button "Copy"
+- img: Collect requirements Draft the design Review with the team Implement the change Ship and monitor
+- text: mermaid
+- button "Copy"
+- img: Renderer Reader Renderer Reader Mermaid source Diagram
+- text: Code block
+- button "Wrap lines" [pressed]
+- button "Copy"
+- code: flowchart LR A[unfinished
+- text: mermaid
+- button "Copy"
+- img: <img src="x"> Safe
+- text: Code block
+- button "Wrap lines" [pressed]
+- button "Copy"
+- code: "flowchart LR A@{ img: \"https://example.invalid/a.png\", label: \"Image\", pos: \"t\", h: 60 }"
+- paragraph:
+  - text: Inline
+  - math: a 2 + b 2 = c 2
+  - text: and
+  - math: e i π + 1 = 0
+  - text: .
+- math: ∫ 0 1 x d x = 1 2
+- math: f ( x ) = x 2 g ( x ) = 2 x
+- math: ( a b c d )
+- paragraph: Lunch costs $5 and dinner costs $10.
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
+- text: {{clock}}
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands"
+- 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Select model, current DeepSeek-V4-Flash": DeepSeek-V4-Flash
+- button "Send message" [disabled]
+- button "1 turns 1 steps"

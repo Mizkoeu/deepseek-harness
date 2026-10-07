@@ -1,19 +1,30 @@
-/** Extend upstream dollar-only math syntax with TeX delimiters while reusing its token vocabulary. */
+/**
+ * Extend upstream dollar math syntax with TeX backslash delimiters and a
+ * currency-safe single-dollar rule while reusing its token vocabulary.
+ */
 
 import { factorySpace } from 'micromark-factory-space'
 import type {} from 'micromark-extension-math'
-import { markdownLineEnding } from 'micromark-util-character'
+import { asciiDigit, markdownLineEnding, markdownLineEndingOrSpace, markdownSpace } from 'micromark-util-character'
 import { codes, constants, types } from 'micromark-util-symbol'
 import type { Construct, Extension, Previous, State, Tokenizer } from 'micromark-util-types'
 
 // oxlint-disable typescript/no-this-alias -- micromark binds tokenizer context only on the outer callback.
 
-const previousBackslash: Previous = function (code) {
-  if (code !== codes.backslash) return true
-  const tail = this.events.at(-1)
-  /* v8 ignore next -- a previous code necessarily has a preceding event. */
-  if (tail === undefined) return false
-  return tail[1].type === types.characterEscape
+/**
+ * A text construct opening on `marker` must not continue a run of the same
+ * marker unless that previous marker was escaped.
+ * @param marker - The construct's opening character code.
+ * @returns The construct's `previous` guard.
+ */
+function previousUnescaped(marker: number): Previous {
+  return function (code) {
+    if (code !== marker) return true
+    const tail = this.events.at(-1)
+    /* v8 ignore next -- a previous code necessarily has a preceding event. */
+    if (tail === undefined) return false
+    return tail[1].type === types.characterEscape
+  }
 }
 
 const tokenizeBackslashMathText: Tokenizer = function (effects, ok, nok) {
@@ -309,9 +320,108 @@ const nonLazyContinuation: Construct = {
   tokenize: tokenizeNonLazyContinuation,
 }
 
+/**
+ * Single-dollar inline math under Pandoc's `tex_math_dollars` rule, so prose
+ * prices such as `$5 and $10` stay text: the opening `$` must be followed by a
+ * non-space character, and the closing `$` must follow a non-space character
+ * and must not be followed by a digit or another `$`. Any other unescaped `$`
+ * ends the candidate as literal text, because TeX math cannot contain one; a
+ * price before real math (`costs $5, and $x$`) therefore leaves the later
+ * formula intact. A backslash takes the next character literally, so `\$`
+ * never closes. Requires `math({ singleDollarTextMath: false })`, which
+ * leaves `$$` and longer sequences to `micromark-extension-math`.
+ */
+const tokenizeSingleDollarMathText: Tokenizer = function (effects, ok, nok) {
+  let afterSpace = false
+
+  return start
+
+  function start(code: number | null): State | undefined {
+    /* v8 ignore next -- the text construct is dispatched only for a dollar sign. */
+    if (code !== codes.dollarSign) return nok(code)
+    effects.enter('mathText')
+    effects.enter('mathTextSequence')
+    effects.consume(code)
+    effects.exit('mathTextSequence')
+    return open
+  }
+
+  function open(code: number | null): State | undefined {
+    if (code === codes.eof || code === codes.dollarSign || markdownLineEndingOrSpace(code)) return nok(code)
+    return dataStart(code)
+  }
+
+  function between(code: number | null): State | undefined {
+    if (code === codes.eof) return nok(code)
+    if (markdownLineEnding(code)) {
+      effects.enter(types.lineEnding)
+      effects.consume(code)
+      effects.exit(types.lineEnding)
+      afterSpace = true
+      return between
+    }
+    if (code === codes.dollarSign) {
+      return afterSpace ? nok(code) : effects.attempt({ partial: true, tokenize: tokenizeClose }, close, nok)(code)
+    }
+    return dataStart(code)
+  }
+
+  function dataStart(code: number | null): State | undefined {
+    effects.enter('mathTextData')
+    return dataCharacter(code)
+  }
+
+  function dataCharacter(code: number | null): State | undefined {
+    afterSpace = markdownSpace(code)
+    effects.consume(code)
+    return code === codes.backslash ? escaped : data
+  }
+
+  function escaped(code: number | null): State | undefined {
+    if (code === codes.eof || markdownLineEnding(code)) return data(code)
+    afterSpace = false
+    effects.consume(code)
+    return data
+  }
+
+  function data(code: number | null): State | undefined {
+    if (code === codes.eof || code === codes.dollarSign || markdownLineEnding(code)) {
+      effects.exit('mathTextData')
+      return between(code)
+    }
+    return dataCharacter(code)
+  }
+
+  function close(code: number | null): State | undefined {
+    effects.exit('mathText')
+    return ok(code)
+  }
+
+  function tokenizeClose(closeEffects: Parameters<Tokenizer>[0], closeOk: State, closeNok: State): State {
+    return dollar
+
+    function dollar(code: number | null): State | undefined {
+      closeEffects.enter('mathTextSequence')
+      closeEffects.consume(code)
+      closeEffects.exit('mathTextSequence')
+      return after
+    }
+
+    function after(code: number | null): State | undefined {
+      return code === codes.dollarSign || asciiDigit(code) ? closeNok(code) : closeOk(code)
+    }
+  }
+}
+
+const singleDollarMathText: Construct = {
+  name: 'singleDollarMathText',
+  previous: previousUnescaped(codes.dollarSign),
+  tokenize: tokenizeSingleDollarMathText,
+}
+
 const backslashMathText: Construct = {
   name: 'backslashMathText',
-  previous: previousBackslash,
+  previous: previousUnescaped(codes.backslash),
   tokenize: tokenizeBackslashMathText,
 }
 
@@ -334,14 +444,16 @@ const backslashMath: Extension = {
     [codes.backslash]: backslashMathFlow,
     [codes.dollarSign]: sameLineDollarMathFlow,
   },
-  text: { [codes.backslash]: backslashMathText },
+  text: { [codes.backslash]: backslashMathText, [codes.dollarSign]: singleDollarMathText },
 }
 
 /**
- * TeX backslash delimiters and same-line display-dollar blocks as a micromark
- * syntax extension reusing `micromark-extension-math`'s token vocabulary; the
- * caller must also register `math()` on the same parse so the emitted tokens
- * compile to standard math nodes.
+ * TeX backslash delimiters, same-line display-dollar blocks, and
+ * currency-safe single-dollar inline math as a micromark syntax extension
+ * reusing `micromark-extension-math`'s token vocabulary; the caller must also
+ * register `math({ singleDollarTextMath: false })` on the same parse so the
+ * emitted tokens compile to standard math nodes and `$$` inline math keeps
+ * its upstream grammar.
  * @returns The micromark syntax extension.
  */
 export function mathCompatibility(): Extension {

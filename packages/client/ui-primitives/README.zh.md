@@ -97,6 +97,10 @@ kind: "package-library"
 
 `MarkdownText` 渲染不可信的 GFM 与 TeX 公式、阻止不安全的链接与图片，并可把已解析的文件提及转换为显式控件。外层 `MarkdownDelegateProvider` 会接收普通点击产生的已净化 HTTP(S) URL；带修饰键的点击和 Provider 外的链接保留原生外部 anchor 行为。当 owner 传入 `pathImages` 词表时，本地媒体路径的图片目标只在落定渲染阶段重写为可展示 URL（与 file mentions 相同的流式门）；不传词表时本地目标保持惰性 alt 文本。重写后的图片支持 HTTP(S)、data、blob 及桌面端 `dsh-app://app/api/file` 路由；正文直接书写的桌面端 URL 仍保持惰性。加载或解码失败后，图片替换为作者的 alt 文本；alt 为空时显示原始目标路径；`fileImages` 还提供本地化的失败提示前缀。图片源变化后可重新加载。回复流式输出时，它冻结已完成的块、按已完成行推进顶层未闭合 fence，并从保存的 Shiki grammar state 为该 fence 增量高亮。已完成的 token 行进入固定大小的 React 分组，后续分片只 reconcile 正在增长的分组；最终全量解析解决跨文档语法时，未变化的 fence 会保留该 DOM。`TerminalBlock`、`ReadBlock`、`DiffBlock`、`SearchBlock` 与 `WebBlock` 把对应的工具结果意图渲染为带复制控件、溢出处理及适用时 ANSI 处理的卡片。`JsonTree` 与 `JsonBlock` 以只读方式检查 JSON 值；`projectUserText` 把已发送的用户文本投影为行内普通文本段与引用 chip，供消息气泡和排队行使用。引用名称继承调用方的换行规则：长名称在气泡内换行，排队预览保持单行布局。传入 `UserTextReferences` 时，文件和 skill 引用成为支持键盘操作的预览按钮，复用正文文件链接的悬停和聚焦样式；第一次指针点击可以打开预览，后续点击和已有选区保留原生选择行为。键盘激活在存在选区时仍可打开预览。
 
+定稿的 TeX 通过 KaTeX 渲染并禁用受信任命令：`$…$`、`$$…$$`、`\(…\)`、`\[…\]` 与 ```` ```math ```` 围栏，包括 `aligned`、`pmatrix` 等多行环境。流式回复在定稿前保持 TeX 为字面文本。单美元符号公式遵循 Pandoc 的空白规则：起始 `$` 之后必须是非空白字符，结束 `$` 之前必须是非空白字符且其后不能是数字，其他未转义的 `$` 会使该候选保持为文本。因此 `$5 and $10` 这类价格仍是正文；公式内的字面美元符号写作 `\$`。
+
+定稿的 ```` ```mermaid ```` 围栏渲染为图表卡片。卡片使用共享的代码卡片工具栏，其复制操作写入图表源码。Mermaid 与 DOMPurify 随第一个图表加载，不进入初始包。渲染采用严格安全级别且不使用 HTML 标签，并在布局前拒绝流程图图片节点。第二遍净化会移除 `foreignObject`、图片、脚本与 `use`，删除链接目标与外部 `href` 值，并替换外部 CSS `url()` 与 `@import` 引用。图表配色跟随浅色或深色调色板。宽图表最多缩小到固有宽度的 60%，之后在卡片内横向滚动，而不会撑宽页面。流式围栏保持为代码，渲染失败的图表回退为其源代码块（[决策](../../../.agents/notes/implemented/feature/2026-08-19-web-inline-mermaid-diagrams.zh.md)）。
+
 `MarkdownText` 默认为 `variant="body"`。次级内容使用 `variant="compact"`：其 13px 字号与 20px 行高跟随内容字号设置，各级标题保持同一字号并使用 600 字重，段落与列表采用更紧凑的间距。正文、链接和代码均保持 tertiary 颜色，以点状下划线区分链接。代码标题栏随代码块滚动。表格和公式仍然启用，使用周围文字的字号，并在可用宽度内横向滚动。两个变体共享解析器与流式缓存。
 
 `CodeBlock.toolbarLabels` 启用共享代码卡片的标题栏和间距。`ReadBlock` 与 `DiffBlock` 使用相同的标题栏：tertiary 色的语言名称与文件名、secondary 色的复制与换行图标，以及悬停或键盘聚焦时的提示。语言缺失或不受支持时显示调用方提供的本地化代码块标题；混合语言的 Diff 也使用该标题。代码卡片共用字体和内容内边距；在两种主题下，标题栏和正文都使用相同背景。读取卡片的行号栏容纳返回窗口中的最大行号，Diff 底色覆盖完整可滚动行。换行按钮保留固定的无障碍名称，以 `aria-pressed` 表达状态；提示文本说明下一步操作。换行设置仅属于当前挂载的卡片，不改变复制的文本；代码围栏默认换行，读取和差异卡片则在启用换行前保留源码列位置。紧凑 Markdown 共用此工具栏、间距和代码字体排版，同时保留单色文本。源码预览传入 `toolbarLabels` 后，可用 `wrap` 跟随所属视图的换行设置，仅显示语言和复制图标；所属视图的 CSS 保留源码布局。
@@ -138,7 +142,7 @@ kind: "package-library"
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 原子组件公开导出 |
-| [`src/markdown/`](src/markdown/) | Markdown 与数学公式流水线：micromark 解析、KaTeX 排版、增量流式渲染器、`CodeBlock`/`JsonBlock` |
+| [`src/markdown/`](src/markdown/) | Markdown 与数学公式流水线：micromark 解析、KaTeX 排版、增量流式渲染器、`CodeBlock`/`JsonBlock`、惰性加载的 Mermaid 图表 |
 | [`src/TerminalBlock.tsx`](src/TerminalBlock.tsx) | ANSI 转义解析（`anser`）与终端卡片渲染 |
 | [`src/ReadBlock.tsx`](src/ReadBlock.tsx) / [`src/DiffBlock.tsx`](src/DiffBlock.tsx) | 读取与差异卡片 |
 | [`src/SearchBlock.tsx`](src/SearchBlock.tsx) / [`src/WebBlock.tsx`](src/WebBlock.tsx) | 搜索与网页检索卡片 |
@@ -203,6 +207,7 @@ kind: "package-library"
 - **`Pill` 与 `Input` 没有设计来源**：两个原子组件均自行定义；与其相似的侧边栏搜索字段和视图标签条由消费方组合，不是这些原子组件。
 - **`StateDot` 没有 `Active` 变体**：支持的状态为 done、warning、ongoing、error 和 idle。
 - **面向用户的文案必须由渲染点提供**：这些原子组件是 zero-Cordis 的，拿不到 `ctx.locale`；各功能必须通过原子组件的带类型 prop 提供完整本地化 label（见[决策](../../../.agents/notes/implemented/architecture/2026-08-23-locale-owned-client-ui-copy.zh.md)）。
+- **Mermaid 图表是静态的，混用美元符号仍有歧义**：图表不支持平移、缩放或可点击节点，Mermaid 布局在浏览器主线程上运行。同时满足两条定界规则的未转义 `$` 仍会配对为公式，与 Pandoc 一致。
 - **`TerminalBlock` 不是终端模拟器**：它渲染已结束或仍在运行的命令输出，而不是交互式会话：SGR 颜色、回车、退格、行内擦除、制表位与字符宽度会被遵循；绝对光标定位、清屏与备用屏幕序列会被剥离。
 
 <a id="dev-note"></a>
