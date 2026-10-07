@@ -354,12 +354,32 @@ describe.skipIf(!existsSync(dshBin))('dsh BUILT bin (node lib/bin.js, no tsx)', 
     await expect(help.stdout).toMatchFileSnapshot('./expected/launcher-help.txt')
     expect(help.stdout).toContain('dsh --profile web')
     expect(help.stdout).toContain('dsh plugin --profile')
+    expect(help.stdout).toContain('dsh auth login github-copilot')
     expect(help.stdout).not.toMatch(/^\s+(?:tui|meta|upgrade)\b/mu)
     for (const removed of [['--config', 'x.yml'], ['-p', 'task'], ['web', '--profile', 'tui']]) {
       const result = await runBuiltBin(removed)
       expect(result.code).toBe(1)
     }
   }, SPAWN_TIMEOUT_MS * 3 + 30_000)
+
+  it('reports provider sign-in status from an empty home without booting a profile', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-auth-status-'))
+    try {
+      const status = await runBuiltBin(['auth', 'status', 'github-copilot'], { DSH_HOME: home })
+      expect(status.code).toBe(0)
+      expect(status.stderr).toBe('')
+      expect(status.stdout).toBe('GitHub Copilot: not signed in.')
+      // No profile was initialized to answer it.
+      expect(existsSync(join(home, 'profiles'))).toBe(false)
+
+      const unknown = await runBuiltBin(['auth', 'status', 'not-a-provider'], { DSH_HOME: home })
+      expect(unknown.code).toBe(1)
+      expect(unknown.stderr).toContain('"not-a-provider" offers no sign-in; providers that do:')
+      expect(unknown.stderr).toContain('github-copilot')
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  }, SPAWN_TIMEOUT_MS * 2 + 30_000)
 
   it('routes help and usage errors without activating startup-dependent rows', async () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-app-help-'))

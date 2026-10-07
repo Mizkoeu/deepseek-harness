@@ -16,7 +16,29 @@
 
 选择**添加模型提供商**。卡片默认打开在**第三方模型提供商**：选取 dsh 自带的提供商——列表显示的是提供商 id，例如 `anthropic`、`openai`、Kimi 对应的 `moonshotai`、GLM 对应的 `zai`——输入其 API 密钥并保存。已安装目录会提供端点、协议和模型列表。
 
-通过 OAuth 登录的提供商（例如 Codex）暂不支持。
+通过 OAuth 登录的提供商（例如 GitHub Copilot 或 Codex）无法在此页面登录。请先在终端登录，做法见[登录 GitHub Copilot](#sign-in-to-github-copilot)，然后在此处不填密钥添加该提供商。
+
+<a id="sign-in-to-github-copilot"></a>
+## 登录 GitHub Copilot
+
+GitHub Copilot 订阅只需在终端登录一次。该命令不启动任何 profile，因此 Web UI 可以保持运行：
+
+```sh
+dsh auth login github-copilot
+```
+
+在 GitHub Enterprise 问题处直接按回车即使用 github.com，也可以传入 `--enterprise-domain <domain>` 在命令行上回答。打开打印出的 GitHub 页面，输入打印出的代码，等待出现 `GitHub Copilot: signed in`。按 Ctrl+C 会取消且不存储任何内容。
+
+然后选择**添加模型提供商**，选取 `github-copilot`，API 密钥留空并保存。存储的登录会为每个请求完成认证，并自行续期短效的 Copilot 令牌；正在运行的 Web UI 无需重启即可使用它。之后也请保持密钥为空：已配置的密钥优先于登录。
+
+随时可以检查或移除登录；两个命令都不会打印令牌：
+
+```sh
+dsh auth status github-copilot
+dsh auth logout github-copilot
+```
+
+同样的命令也可以登录已安装目录中提供登录的其他提供商，例如 `openai-codex`；没有登录的 id 会被拒绝，并列出有登录的 id。登录存储在 `$DSH_HOME/.credentials.yaml` 中，权限仅限所有者，这能防止本机其他用户读取，但无法防止以你的身份运行的程序（包括 agent 工具）读取。确切的命令行为见 [CLI 参考](../../../apps/cli/reference/README.zh.md#provider-sign-in)。
 
 ## 添加自定义模型 API
 
@@ -192,6 +214,7 @@ DeepSeek 将省略的 `inputModalities` 视为纯文本，并拒绝空列表。�
 ## 排错
 
 - **`MISSING_CREDENTIAL`**：通过模型页存储提供商密钥，或提供被引用的环境变量。
+- **GitHub Copilot 请求以未认证失败**：运行 `dsh auth status github-copilot`；若显示未登录，运行 `dsh auth login github-copilot`。保持该提供商的 API 密钥为空，以便使用登录。
 - **`UNKNOWN_MODEL`**：选择已配置的模型，或向自定义提供商添加缺失的模型。
 - **获取可用模型返回 401**：检查密钥。模型发现会调用 OpenAI 兼容的 `GET /models` 端点；对于不提供该端点的服务，请手动输入模型。
 - **获取可用模型提示既没有 `data` 数组也没有 `models` 对象**：端点返回的列表格式不在探测的读取范围内。请手动输入模型。

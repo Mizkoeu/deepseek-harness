@@ -11,7 +11,8 @@
  * and `dsh --profile web -h` prints the web app's help, not this one's.
  *
  * `dsh <name>` abbreviates `dsh --profile <name>`; `plugin` manages a profile's
- * plugin dependencies by forwarding to pnpm.
+ * plugin dependencies by forwarding to pnpm, and `auth` signs in to a model
+ * provider without booting a profile. Both are reserved only as the first token.
  * @module @deepseek-ai/dsh/args
  */
 
@@ -57,8 +58,22 @@ interface PluginInvocation {
   args: string[]
 }
 
+/** Sign in to, inspect, or sign out of one pi-ai provider's stored credential. */
+export interface AuthInvocation {
+  mode: 'auth'
+  action: 'login' | 'status' | 'logout'
+  /** pi-ai provider id; whether it offers a sign-in is decided against the installed catalog at run time. */
+  provider: string
+  /** Answer to GitHub Copilot's enterprise-domain prompt; only `login github-copilot` accepts it. */
+  enterpriseDomain?: string
+}
+
 /** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
-export type DshInvocation = ProfileInvocation | DumpConfigInvocation | DumpConfigSchemaInvocation | PluginInvocation
+export type DshInvocation =
+  | ProfileInvocation | DumpConfigInvocation | DumpConfigSchemaInvocation | PluginInvocation | AuthInvocation
+
+/** Provider whose sign-in the help text names and whose enterprise-domain prompt `--enterprise-domain` answers. */
+const COPILOT_PROVIDER = 'github-copilot'
 
 /** Launcher flags for profile boot and configuration dumps. */
 interface BootOptions {
@@ -97,6 +112,7 @@ Examples:
   dsh tui --resume <session>                arguments after the launcher flags reach the app
   dsh web --help                            the web app's own flags and help
   dsh plugin --profile tui add <package>    install a plugin into the tui profile
+  dsh auth login github-copilot             sign in to GitHub Copilot for the pi-ai provider
 `
 
 /**
@@ -136,6 +152,42 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
 }
 
 /**
+ * Declare `dsh auth login|status|logout <provider>`. The subcommands re-enable
+ * the help option the launcher turns off for app arguments, because nothing
+ * after `auth` belongs to an app.
+ * @param program - the launcher command.
+ * @param resolve - receives the parsed invocation.
+ */
+function addAuthCommand(program: Command, resolve: (invocation: AuthInvocation) => void): void {
+  const auth = program.command('auth')
+    .description('sign in to a pi-ai model provider and store its credential in $DSH_HOME/.credentials.yaml')
+    .helpOption('-h, --help', 'display help for command')
+  auth.command('login')
+    .description('sign in interactively and store the credential')
+    .helpOption('-h, --help', 'display help for command')
+    .argument('<provider>', `pi-ai provider id, e.g. ${COPILOT_PROVIDER}`)
+    .option('--enterprise-domain <domain>', `GitHub Enterprise domain for ${COPILOT_PROVIDER}; omit to be asked`)
+    .action((provider: string, options: { enterpriseDomain?: string }) => {
+      const domain = options.enterpriseDomain
+      if (domain !== undefined && provider !== COPILOT_PROVIDER) {
+        program.error(`error: --enterprise-domain applies only to ${COPILOT_PROVIDER}`)
+      }
+      if (domain?.trim() === '') program.error('error: --enterprise-domain needs a domain')
+      resolve({ mode: 'auth', action: 'login', provider, ...domain === undefined ? {} : { enterpriseDomain: domain } })
+    })
+  for (const [action, description] of [
+    ['status', 'report whether a credential is stored, without printing it'],
+    ['logout', 'delete the stored credential'],
+  ] as const) {
+    auth.command(action)
+      .description(description)
+      .helpOption('-h, --help', 'display help for command')
+      .argument('<provider>', `pi-ai provider id, e.g. ${COPILOT_PROVIDER}`)
+      .action((provider: string) => { resolve({ mode: 'auth', action, provider }) })
+  }
+}
+
+/**
  * Resolve argv into one invocation, or print and exit for help, version, or an
  * error.
  * @param argv - arguments after the Node binary and script.
@@ -152,7 +204,7 @@ export function parseDshArgs(argv: readonly string[], version: string, manageDes
   program
     .name('dsh')
     .version(version, '-V, --version', 'output the version number')
-    .usage('[--profile] <name> [options] [app-args...]\n       dsh plugin --profile <name> <pnpm-args...>')
+    .usage('[--profile] <name> [options] [app-args...]\n       dsh plugin --profile <name> <pnpm-args...>\n       dsh auth <login|status|logout> <provider>')
     .description('dsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch layers under your own overrides.')
     .addHelpText('after', HELP_EXAMPLES)
     .exitOverride()
@@ -198,8 +250,10 @@ export function parseDshArgs(argv: readonly string[], version: string, manageDes
       })
   }
 
+  if (first === 'auth') addAuthCommand(program, (invocation) => { resolved = invocation })
+
   try {
-    const expanded = first !== undefined && !first.startsWith('-') && first !== 'plugin'
+    const expanded = first !== undefined && !first.startsWith('-') && first !== 'plugin' && first !== 'auth'
       ? ['--profile', ...argv]
       : argv
     program.parse(expanded, { from: 'user' })

@@ -122,6 +122,42 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', '--save-dev', 'x'] })
   })
 
+  it('routes provider sign-in commands without a profile', () => {
+    expect(parse(['auth', 'login', 'github-copilot']))
+      .toEqual({ mode: 'auth', action: 'login', provider: 'github-copilot' })
+    expect(parse(['auth', 'login', 'github-copilot', '--enterprise-domain', 'ghe.example.com']))
+      .toEqual({ mode: 'auth', action: 'login', provider: 'github-copilot', enterpriseDomain: 'ghe.example.com' })
+    expect(parse(['auth', 'status', 'github-copilot']))
+      .toEqual({ mode: 'auth', action: 'status', provider: 'github-copilot' })
+    // Which providers offer a sign-in is the installed catalog's answer, decided when the command runs.
+    expect(parse(['auth', 'logout', 'openai-codex']))
+      .toEqual({ mode: 'auth', action: 'logout', provider: 'openai-codex' })
+    // Reserved only as the first token, like plugin.
+    expect(parse(['--profile', 'auth'])).toMatchObject({ mode: 'profile', profile: 'auth' })
+    expect(parse(['web', 'auth', 'login'])).toMatchObject({ mode: 'profile', profile: 'web', args: ['auth', 'login'] })
+  })
+
+  it.each([
+    ['auth'],
+    ['auth', 'login'],
+    ['auth', 'status'],
+    ['auth', 'bogus', 'github-copilot'],
+    ['auth', 'login', 'github-copilot', 'extra'],
+    ['auth', 'login', 'github-copilot', '--enterprise-domain='],
+    ['auth', 'login', 'openai-codex', '--enterprise-domain', 'ghe.example.com'],
+    ['auth', 'status', 'github-copilot', '--enterprise-domain', 'ghe.example.com'],
+  ])('rejects invalid sign-in command %j', (...argv: string[]) => {
+    expect(exitCode(argv)).toBe(1)
+  })
+
+  it('prints sign-in help with the provider argument', () => {
+    const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
+    expect(exitCode(['auth', 'login', '--help'])).toBe(0)
+    const help = stdout.mock.calls.map(([chunk]) => String(chunk)).join('')
+    expect(help).toContain('Usage: dsh auth login [options] <provider>')
+    expect(help).toContain('--enterprise-domain <domain>')
+  })
+
   it.each(['desktop', 'Desktop', 'DESKTOP'])('permits installed Desktop plugin commands for %s', (profile) => {
     expect(parse(['plugin', '--profile', profile, 'add', 'example-plugin'], true))
       .toEqual({ mode: 'plugin', profile: 'desktop', args: ['add', 'example-plugin'] })
