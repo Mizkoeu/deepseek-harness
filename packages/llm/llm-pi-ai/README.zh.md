@@ -98,6 +98,8 @@ pi-ai 提供登录的提供方可以通过 harness 授权 seam 登录：流程�
 
 profile 的 `models` 列表会替换而非扩展路由的已安装目录；每个条目从同 id 已安装模型取未设置字段的默认值，因此把路由收窄到两个模型、修正一个容量或添加比已安装目录更新的模型都是一行编辑。`modelOverrides` 无需该代价即可重塑个别已安装目录模型——修正一个模型，保留其余三十七个——当它与 `models` 列表并存、位于手工声明路由上、或点名目录未描述的模型时会被拒绝，因为静默不变的模型会成为别人日后寻找的拼写错误。
 
+`github-copilot` 路由还提供已安装目录尚未描述的模型：[`src/catalog.ts`](src/catalog.ts) 把 `claude-sonnet-5.5` 作为 `claude-sonnet-5` 的改名副本、把 `gpt-6.1-sol` 作为 `gpt-6-sol` 的改名副本加入，因为模型横跨多种线路协议的路由无法通过 profile 为单个新模型指定协议、Copilot 请求头和推理映射。同 id 的已发布模型总是优先，OAuth 凭据也仍把该路由限制在订阅所提供的 id 上。
+
 ### 带推理（reasoning）与协议兼容运行
 
 `reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。

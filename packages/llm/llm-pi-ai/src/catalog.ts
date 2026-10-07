@@ -193,15 +193,66 @@ export function catalogProviderIds(): readonly string[] {
   return getBuiltinProviders()
 }
 
+/** One served model the installed catalog lacks, described as a renamed copy of a shipped sibling. */
+interface UncatalogedModel {
+  /** Model id the provider serves and requests send. */
+  readonly id: string
+  /** Display name for selectors. */
+  readonly name: string
+  /** Shipped model of the same family and wire protocol whose descriptor the clone copies. */
+  readonly cloneOf: string
+}
+
 /**
- * The installed catalog models for one route, indexed by model id.
+ * Models a catalog route serves that the installed pi-ai catalog does not yet
+ * describe, keyed by route. A catalog model carries facts no profile field can
+ * restate per model: its wire protocol on a route whose models span several,
+ * the provider's request headers, and its reasoning-level wire map. A clone
+ * therefore copies its shipped sibling and overrides only id and name, so
+ * `cloneOf` must name a sibling of the same family and wire protocol.
+ *
+ * The table is catalog data, not deployment configuration: it states what the
+ * provider serves, the fact pi-ai's own catalog states for every other model.
+ * Which of these a deployment shows remains the route's `models` list, and an
+ * OAuth route still filters the result to the ids its credential is entitled
+ * to. Remove an entry once the installed catalog ships the model;
+ * {@link withUncatalogedModels} keeps the shipped descriptor in the meantime.
+ */
+const UNCATALOGED_MODELS: Readonly<Record<string, readonly UncatalogedModel[]>> = {
+  'github-copilot': [
+    { id: 'claude-sonnet-5.5', name: 'Claude Sonnet 5.5', cloneOf: 'claude-sonnet-5' },
+    { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol', cloneOf: 'gpt-6-sol' },
+  ],
+}
+
+/**
+ * Add one route's uncataloged models to its shipped models. A shipped id wins
+ * over a clone of the same id, and an entry whose sibling the installed
+ * catalog no longer ships is omitted rather than invented from nothing.
+ * @param provider - provider route key.
+ * @param shipped - the installed catalog models for the route, by id.
+ * @returns the shipped models followed by every clone that resolved.
+ */
+function withUncatalogedModels(provider: string, shipped: Map<string, Model<Api>>): Map<string, Model<Api>> {
+  const models = new Map(shipped)
+  for (const extra of UNCATALOGED_MODELS[provider] ?? []) {
+    const sibling = shipped.get(extra.cloneOf)
+    if (sibling === undefined || shipped.has(extra.id)) continue
+    models.set(extra.id, { ...sibling, id: extra.id, name: extra.name })
+  }
+  return models
+}
+
+/**
+ * The installed catalog models for one route, plus its uncataloged clones,
+ * indexed by model id.
  * @param provider - provider route key.
  * @returns catalog models by id; empty for a route pi-ai does not ship.
  */
 export function catalogModels(provider: string): Map<string, Model<Api>> {
   if (!catalogProviders().has(provider)) return new Map()
   const models = getBuiltinModels(provider as BuiltinProvider) as Model<Api>[]
-  return new Map(models.map(model => [model.id, model]))
+  return withUncatalogedModels(provider, new Map(models.map(model => [model.id, model])))
 }
 
 /**
