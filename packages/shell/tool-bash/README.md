@@ -65,11 +65,11 @@ With a job registry composed, a foreground command is registered with `ctx.jobs`
 
 ### Sandboxed execution and escalation
 
-When the mounted executor confines commands (for example `dsh-bash-sandbox`), a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a command failure. The model may then retry the exact same command once in the same turn with `sandbox_permissions` (the narrowest wider mode that suffices) and a one-sentence `justification`; the approval prompt raised by that retry is how the user consents. Request wider access only after a real denial; a rejected escalation is final for that command. Repeating the current mode runs without approval, while a narrower target fails before execution. Without `sandbox_permissions`, `justification` may be omitted, empty, or whitespace-only; a non-empty reason without a mode is rejected. Repeating the effective mode also permits an omitted or blank reason. A different requested mode requires a non-empty reason; widening still requires approval.
+When the mounted executor confines commands (for example `dsh-bash-sandbox`), a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a command failure. The model may then retry the exact same command once in the same turn with `sandbox_permissions` (the narrowest wider mode that suffices) and a one-sentence `justification`; the approval prompt raised by that retry is how the user consents. Request wider access only after a real denial; a rejected escalation is final for that command. Only a strictly wider `sandbox_permissions` is an escalation; it requires a non-empty `justification` and approval. An omitted, same, or narrower mode, including the fillers that strict-schema endpoints such as GitHub Copilot's OpenAI Responses route emit for optional fields, runs at the effective mode without approval, and `justification` is then ignored whatever its value.
 
 ### What can go wrong
 
-A composition with no executor provider never activates the tool. Background calls without the job runtime fail with `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, and `sandbox_permissions` without a sandboxing executor fails with `sandbox_permissions is not available in this composition (no sandboxing executor to escalate)`. `enableRunInBackground: false` removes the parameter and rejects a forced background call at execution time.
+A composition with no executor provider never activates the tool. Background calls without the job runtime fail with `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, and `sandbox_permissions` without a sandboxing executor is ignored. `enableRunInBackground: false` removes the parameter and rejects a forced background call at execution time.
 
 -----
 
@@ -192,7 +192,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Validation and policy failures are normalized as `Error: <message>`. This package's stable messages are `invalid command: expected a non-empty string`, `invalid description: expected a non-empty string`, `invalid timeoutMs: expected a positive number, got <value>`, the escalation pairing failures, `run_in_background is disabled for this deployment (enableRunInBackground: false)`, `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, `sandbox_permissions is not available in this composition (no sandboxing executor to escalate)`, the approval availability/rejection/cancellation variants, and `tool call aborted`.
+Validation and policy failures are normalized as `Error: <message>`. This package's stable messages are `invalid command: expected a non-empty string`, `invalid description: expected a non-empty string`, `invalid timeoutMs: expected a positive number, got <value>`, the escalation justification failures, `run_in_background is disabled for this deployment (enableRunInBackground: false)`, `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, the approval availability/rejection/cancellation variants, and `tool call aborted`.
 
 #### Token effect
 

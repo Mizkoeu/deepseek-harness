@@ -1,6 +1,6 @@
 /**
  * Tests for the shared escalation vocabulary and choreography: the strictly-
- * wider ladder, the argument-pairing validation, the model-facing markers, and
+ * wider ladder, strict-schema-tolerant argument normalization, the model-facing markers, and
  * {@link approveEscalation}'s ordered fail-closed sequence. Both enforcing tool
  * families (`dsh-tool-bash`, `dsh-tool-fs`) delegate here, so the ordering and
  * verbatim texts are pinned once, next to the vocabulary that owns them.
@@ -13,8 +13,8 @@ import {
   approveEscalation,
   escalationHintMarker,
   sandboxDenialMarker,
+  normalizeEscalationArgs,
   sandboxPermissionsDescription,
-  validateEscalationArgs,
 } from '@deepseek-ai/dsh-sandbox'
 import type { EscalationApprover, EscalationOutcome } from '@deepseek-ai/dsh-sandbox'
 
@@ -30,16 +30,34 @@ describe('the strictly-wider ladder', () => {
   })
 })
 
-describe('validateEscalationArgs', () => {
-  it('accepts neither field, or both with a non-empty justification', () => {
-    expect(() => { validateEscalationArgs(undefined, undefined) }).not.toThrow()
-    expect(() => { validateEscalationArgs('workspace-write', 'because the workspace needs it') }).not.toThrow()
+describe('normalizeEscalationArgs', () => {
+  it('returns a strictly wider mode with its justification', () => {
+    expect(normalizeEscalationArgs('workspace-write', 'because the workspace needs it', 'read-only'))
+      .toEqual({ requestedMode: 'workspace-write', justification: 'because the workspace needs it' })
+    expect(normalizeEscalationArgs('danger-full-access', 'needs the home directory', 'workspace-write'))
+      .toEqual({ requestedMode: 'danger-full-access', justification: 'needs the home directory' })
   })
 
-  it('rejects one field without the other, and a blank justification', () => {
-    expect(() => { validateEscalationArgs('workspace-write', undefined) }).toThrow(/requires a justification/)
-    expect(() => { validateEscalationArgs(undefined, 'orphan reason') }).toThrow(/only valid together with sandbox_permissions/)
-    expect(() => { validateEscalationArgs('workspace-write', '   ') }).toThrow(/non-empty sentence/)
+  it.each([
+    ['absent fields', undefined, undefined, 'read-only'],
+    ['null fields', null, null, 'read-only'],
+    ['an empty mode', '', 'filled reason', 'read-only'],
+    ['a lone justification', undefined, 'orphan reason', 'read-only'],
+    ['a same-mode filler with a blank justification', 'workspace-write', '', 'workspace-write'],
+    ['a same-mode filler with a sentence', 'workspace-write', 'filled reason', 'workspace-write'],
+    ['a narrower filler', 'workspace-write', '', 'danger-full-access'],
+    ['a narrower filler with null justification', 'workspace-write', null, 'danger-full-access'],
+    ['an unknown mode', 'bogus-mode', 'reason', 'read-only'],
+    ['any mode without a confining backend', 'danger-full-access', 'reason', undefined],
+  ] as const)('requests no escalation for %s', (_label, mode, justification, effective) => {
+    expect(normalizeEscalationArgs(mode, justification, effective)).toBeUndefined()
+  })
+
+  it('rejects a strictly wider mode without a non-empty justification', () => {
+    expect(() => normalizeEscalationArgs('workspace-write', undefined, 'read-only')).toThrow('invalid escalation: sandbox_permissions requires a justification')
+    expect(() => normalizeEscalationArgs('workspace-write', null, 'read-only')).toThrow('invalid escalation: sandbox_permissions requires a justification')
+    expect(() => normalizeEscalationArgs('workspace-write', '', 'read-only')).toThrow('invalid justification: expected a non-empty sentence')
+    expect(() => normalizeEscalationArgs('danger-full-access', ' \t\n', 'workspace-write')).toThrow('invalid justification: expected a non-empty sentence')
   })
 })
 

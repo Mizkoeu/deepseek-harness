@@ -23,7 +23,7 @@ import type { JobId, JobRegistry, JobView } from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
-import { ESCALATION_TARGETS, approveEscalation, sandboxPermissionsDescription, validateEscalationArgs } from '@deepseek-ai/dsh-sandbox'
+import { ESCALATION_TARGETS, approveEscalation, normalizeEscalationArgs, sandboxPermissionsDescription } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellExecution, ShellRunResult } from '@deepseek-ai/dsh-shell'
@@ -66,11 +66,11 @@ interface BashToolArgs {
   workdir?: string
   run_in_background?: boolean
   sandbox_permissions?: string
-  /** Optional for an omitted or repeated effective mode; widening requires a non-empty reason. */
+  /** Read only when `sandbox_permissions` strictly widens the effective mode, which then requires a non-empty reason. */
   justification?: string
 }
 
-function validateBashArgs(args: BashToolArgs, effectiveMode: SandboxMode | undefined): void {
+function validateBashArgs(args: BashToolArgs): void {
   if (args.command.trim().length === 0) {
     throw new Error('invalid command: expected a non-empty string')
   }
@@ -80,11 +80,6 @@ function validateBashArgs(args: BashToolArgs, effectiveMode: SandboxMode | undef
   if (args.timeoutMs !== undefined && (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0)) {
     throw new Error(`invalid timeoutMs: expected a positive number, got ${JSON.stringify(args.timeoutMs)}`)
   }
-  if (args.sandbox_permissions !== undefined && args.sandbox_permissions === effectiveMode) return
-  const justification = args.sandbox_permissions === undefined && args.justification?.trim() === ''
-    ? undefined
-    : args.justification
-  validateEscalationArgs(args.sandbox_permissions, justification)
 }
 
 function bashDescription(): string {
@@ -224,28 +219,21 @@ export function apply(ctx: Context, config: Config = {}): void {
     sandboxPolicy?.resolve(exec.agent === undefined ? {} : { session: exec.agent.session })
 
   /**
-   * Resolve a sandbox-escalation request through `ctx.approval` BEFORE
-   * anything executes, delegating the shared fail-closed sequence (strict
-   * widening, channel resolution, outcome mapping) to
-   * {@link approveEscalation}. This tool contributes only the composition
-   * guard (the fields are unadvertised without a sandboxing executor, yet
-   * schema validation checks advertised keys only, so an unadvertised
-   * `sandbox_permissions` still reaches execute) and the approval
-   * ingredients. The shared policy resolver is required whenever the executor
-   * advertises confinement, so a split composition fails at tool-plugin load.
+   * Resolve the call's sandbox policy BEFORE anything executes. Arguments that
+   * {@link normalizeEscalationArgs} reduces to no escalation (absent, strict-schema
+   * fillers, same or narrower modes, or any value without a confining executor)
+   * keep the standing policy; a strictly wider request goes through
+   * `ctx.approval` via the shared fail-closed {@link approveEscalation} sequence
+   * and applies to this call only.
    */
-  const approveBashEscalation = (
-    mode: string,
-    justification: string,
-    exec: ToolExecution,
-    standingPolicy: SandboxExecutionPolicy | undefined,
-  ): Promise<SandboxMode> => {
-    if (escalationModes.length === 0) {
-      throw new Error('sandbox_permissions is not available in this composition (no sandboxing executor to escalate)')
-    }
-    const effectiveMode = (standingPolicy as SandboxExecutionPolicy).mode
-    return approveEscalation(
-      { requestedMode: mode, justification, effectiveMode, subject: 'command' },
+  const resolveCallPolicy = async (args: BashToolArgs, exec: ToolExecution): Promise<SandboxExecutionPolicy | undefined> => {
+    const standingPolicy = resolveSandboxPolicy(exec)
+    const escalation = normalizeEscalationArgs(args.sandbox_permissions, args.justification, standingPolicy?.mode)
+    if (escalation === undefined) return standingPolicy
+    // A genuine escalation implies a confining executor, so the standing policy exists.
+    const policy = standingPolicy as SandboxExecutionPolicy
+    const mode = await approveEscalation(
+      { ...escalation, effectiveMode: policy.mode, subject: 'command' },
       {
         approver: ctx.get('approval'),
         agent: exec.agent,
@@ -254,6 +242,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         signal: exec.signal,
       },
     )
+    return { ...policy, mode }
   }
 
   // Cross-call guidance belongs in the prompt rather than one-call schema prose.
@@ -480,15 +469,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       },
       async execute(args: BashToolArgs, exec) {
         // Description is display metadata; workdir defaults to the caller's session.
-        const standingPolicy = resolveSandboxPolicy(exec)
-        validateBashArgs(args, standingPolicy?.mode)
-        const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
-          ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
-          : undefined
-        const policy = approvedMode === undefined
-          ? standingPolicy
-          : { ...(standingPolicy as SandboxExecutionPolicy), mode: approvedMode }
-        const workdir = resolveWorkdir(args.workdir, exec, standingPolicy?.workspaceRoot)
+        validateBashArgs(args)
+        const policy = await resolveCallPolicy(args, exec)
+        const workdir = resolveWorkdir(args.workdir, exec, policy?.workspaceRoot)
         const dshEnv = ctx.shellEnv.collect(exec)
         const request: ShellExecRequest = {
           command: args.command,

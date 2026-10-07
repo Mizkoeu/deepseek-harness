@@ -2269,16 +2269,15 @@ describe('per-program execution controls', () => {
     } finally { await ctx.fiber.dispose() }
   })
 
-  it('rejects escalation fields for a runtime without confinement support', async () => {
+  it('ignores escalation fields for a runtime without confinement support', async () => {
     const { ctx, tools, runtime } = await setup()
     try {
       const result = await tools.execute({
         callId: ToolCallId('unsupported-escalation'), name: RUN_CODE_NAME, signal: testToolSignal,
         arguments: { code: 'return 1', description: 'Try an unsupported mode', sandbox_permissions: 'workspace-write', justification: 'Need file writes' },
       })
-      expect(result.isError).toBe(true)
-      expect(JSON.stringify(result.content)).toContain('sandbox_permissions is not available for this PTC runtime')
-      expect(runtime.lastRequest).toBeUndefined()
+      expect(result.isError).toBe(false)
+      expect(runtime.lastRequest?.sandboxPolicy).toBeUndefined()
     } finally { await ctx.fiber.dispose() }
   })
 
@@ -2293,10 +2292,10 @@ describe('per-program execution controls', () => {
 
   it.each([
     { sandbox_permissions: 'workspace-write' },
-    { justification: 'Need writes' },
+    { sandbox_permissions: 'workspace-write', justification: '' },
     { sandbox_permissions: 'workspace-write', justification: ' ' },
     { sandbox_permissions: 'read-only', justification: 'No widening' },
-  ])('rejects invalid escalation pairing or mode: %j', async (args) => {
+  ])('rejects a wider mode without a justification, or a mode outside the schema: %j', async (args) => {
     const { ctx, runtime, execute } = await controlledSetup()
     const ask = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
     ctx.on('approval/request', ask)
@@ -2304,6 +2303,25 @@ describe('per-program execution controls', () => {
       expect((await execute(args)).isError).toBe(true)
       expect(ask).not.toHaveBeenCalled()
       expect(runtime.lastRequest).toBeUndefined()
+    } finally { await ctx.fiber.dispose() }
+  })
+
+  it.each([
+    ['a lone justification', 'read-only', { justification: 'Need writes' }],
+    ['a blank lone justification', 'read-only', { justification: '' }],
+    ['a same-mode filler', 'workspace-write', { sandbox_permissions: 'workspace-write', justification: '' }],
+    ['a same-mode filler with a sentence', 'danger-full-access', { sandbox_permissions: 'danger-full-access', justification: 'filled reason' }],
+    ['a narrower filler', 'danger-full-access', { sandbox_permissions: 'workspace-write', justification: '' }],
+  ] as const)('runs %s at the standing mode without approval', async (_label, mode, args) => {
+    const { ctx, runtime, session, execute } = await controlledSetup()
+    const ask = vi.fn(() => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    ctx.on('approval/request', ask)
+    if (mode !== 'read-only') session.append('sandbox/mode', { mode })
+    try {
+      const result = await execute(args)
+      expect(result.isError, JSON.stringify(result.content)).toBe(false)
+      expect(runtime.lastRequest?.sandboxPolicy?.mode).toBe(mode)
+      expect(ask).not.toHaveBeenCalled()
     } finally { await ctx.fiber.dispose() }
   })
 

@@ -60,11 +60,11 @@ With a job registry composed, a foreground command is registered with `ctx.jobs`
 
 ### Windows-specific sandbox behavior
 
-Under a sandboxing executor, denied commands report `[sandbox: file access denied under <mode> mode]`, and the same one-shot escalation path applies: retry the exact command once with `sandbox_permissions` plus a `justification` through user approval. The justification asks the model to use the language of the current user request. The tool also teaches two Windows-restricted-token contracts in its description: read-only pwsh runs in ConstrainedLanguage (`.NET` static calls, `Add-Type`, COM, and reflection fail with "only core types" errors), and in both confined modes programs cannot open named pipes, so a command that captures another program's output through piped stdio fails with EPERM — escalate the exact command once or restructure it to avoid capturing output.
+Under a sandboxing executor, denied commands report `[sandbox: file access denied under <mode> mode]`, and the same one-shot escalation path applies: retry the exact command once with `sandbox_permissions` plus a `justification` through user approval. As in `dsh-tool-bash`, an omitted, same, or narrower mode, including strict-schema fillers, runs at the effective mode and ignores `justification`. The justification asks the model to use the language of the current user request. The tool also teaches two Windows-restricted-token contracts in its description: read-only pwsh runs in ConstrainedLanguage (`.NET` static calls, `Add-Type`, COM, and reflection fail with "only core types" errors), and in both confined modes programs cannot open named pipes, so a command that captures another program's output through piped stdio fails with EPERM — escalate the exact command once or restructure it to avoid capturing output.
 
 ### What can go wrong
 
-A composition with no PowerShell executor never activates the tool, and the injected services (`tools`, `shell`, `systemPrompt`, `shellEnv`) must all exist. Background calls without the job runtime fail with `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, and `sandbox_permissions` without a sandboxing executor fails with `sandbox_permissions is not available in this composition (no sandboxing executor to escalate)`.
+A composition with no PowerShell executor never activates the tool, and the injected services (`tools`, `shell`, `systemPrompt`, `shellEnv`) must all exist. Background calls without the job runtime fail with `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, and `sandbox_permissions` without a sandboxing executor is ignored.
 
 -----
 
@@ -184,7 +184,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Validation and infrastructure failures are normalized as `Error: <message>`. This package's stable messages are `invalid command: expected a non-empty string`, `invalid description: expected a non-empty string`, `invalid timeoutMs: expected a positive number, got <value>`, the escalation pairing failures, `sandbox_permissions is not available in this composition (no sandboxing executor to escalate)`, the shared escalation failures (not strictly wider / no approval service / no agent to route / no approval channel / user rejected / was cancelled), `run_in_background is disabled for this deployment (enableRunInBackground: false)`, `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, and `tool call aborted`.
+Validation and infrastructure failures are normalized as `Error: <message>`. This package's stable messages are `invalid command: expected a non-empty string`, `invalid description: expected a non-empty string`, `invalid timeoutMs: expected a positive number, got <value>`, the escalation justification failures, the shared escalation failures (no approval service / no agent to route / no approval channel / user rejected / was cancelled), `run_in_background is disabled for this deployment (enableRunInBackground: false)`, `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`, and `tool call aborted`.
 
 #### Token effect
 

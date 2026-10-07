@@ -60,11 +60,11 @@ kind: "package-reference"
 
 ### Windows 特有的沙箱行为
 
-在沙箱执行器下，被拒绝的命令会报告 `[sandbox: file access denied under <mode> mode]`，并适用相同的单次升权路径：用 `sandbox_permissions` 加一句 `justification`，经用户审批后重试完全相同的命令一次。理由字段提示模型使用用户当前提问的语言。工具还会在其描述中教授两条 Windows 受限令牌约定：只读 pwsh 运行在 ConstrainedLanguage 中（`.NET` 静态调用、`Add-Type`、COM 与反射会以 "only core types" 错误失败）；两种受限模式下程序都无法打开命名管道，因此通过管道 stdio 捕获另一程序输出的命令会以 EPERM 失败——请升权该确切命令一次，或重构命令以避免捕获输出。
+在沙箱执行器下，被拒绝的命令会报告 `[sandbox: file access denied under <mode> mode]`，并适用相同的单次升权路径：用 `sandbox_permissions` 加一句 `justification`，经用户审批后重试完全相同的命令一次。与 `dsh-tool-bash` 相同，省略、相同或更窄的模式（包括严格 schema 填充值）按生效模式执行并忽略 `justification`。理由字段提示模型使用用户当前提问的语言。工具还会在其描述中教授两条 Windows 受限令牌约定：只读 pwsh 运行在 ConstrainedLanguage 中（`.NET` 静态调用、`Add-Type`、COM 与反射会以 "only core types" 错误失败）；两种受限模式下程序都无法打开命名管道，因此通过管道 stdio 捕获另一程序输出的命令会以 EPERM 失败——请升权该确切命令一次，或重构命令以避免捕获输出。
 
 ### 可能出什么问题
 
-没有 PowerShell 执行器的组合永远不会激活该工具，且注入的服务（`tools`、`shell`、`systemPrompt`、`shellEnv`）必须全部存在。没有任务运行时的后台调用会以 `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs` 失败；没有沙箱执行器时的 `sandbox_permissions` 会以 `sandbox_permissions is not available in this composition (no sandboxing executor to escalate)` 失败。
+没有 PowerShell 执行器的组合永远不会激活该工具，且注入的服务（`tools`、`shell`、`systemPrompt`、`shellEnv`）必须全部存在。没有任务运行时的后台调用会以 `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs` 失败；没有沙箱执行器时的 `sandbox_permissions` 会被忽略。
 
 -----
 
@@ -184,7 +184,7 @@ Non-zero exits are reported as `[exit code: N]` markers; investigate failures be
 
 #### 模型看到什么
 
-验证与基础设施失败统一为 `Error: <message>`。本包的稳定消息包括 `invalid command: expected a non-empty string`、`invalid description: expected a non-empty string`、`invalid timeoutMs: expected a positive number, got <value>`、升权配对失败、`sandbox_permissions is not available in this composition (no sandboxing executor to escalate)`、共享升权失败（未严格加宽／无审批服务／无 agent 可路由／无审批通道／用户拒绝／已取消）、`run_in_background is disabled for this deployment (enableRunInBackground: false)`、`background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`，以及 `tool call aborted`。
+验证与基础设施失败统一为 `Error: <message>`。本包的稳定消息包括 `invalid command: expected a non-empty string`、`invalid description: expected a non-empty string`、`invalid timeoutMs: expected a positive number, got <value>`、升权理由失败、共享升权失败（无审批服务／无 agent 可路由／无审批通道／用户拒绝／已取消）、`run_in_background is disabled for this deployment (enableRunInBackground: false)`、`background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs`，以及 `tool call aborted`。
 
 #### Token 影响
 
