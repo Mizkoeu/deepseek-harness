@@ -1,7 +1,8 @@
 /**
  * The escalation vocabulary and choreography shared by every sandbox-enforcing
  * tool family (`@deepseek-ai/dsh-tool-bash`, `@deepseek-ai/dsh-tool-fs`): the
- * strictly-wider ladder, the argument-pairing validation, the model-facing
+ * strictly-wider ladder, the strict-schema-tolerant argument normalization
+ * ({@link normalizeEscalationArgs}), the model-facing
  * denial/hint markers, and {@link approveEscalation} — the ordered fail-closed
  * sequence that resolves a `sandbox_permissions` request through a
  * user-approval channel BEFORE anything executes. One home keeps the two
@@ -40,24 +41,47 @@ export const WIDER_MODES: Record<string, readonly SandboxMode[]> = {
  */
 export const ESCALATION_TARGETS: readonly SandboxMode[] = ['workspace-write', 'danger-full-access']
 
+/** One genuine escalation request: a target strictly wider than the call's effective mode plus its reason. */
+export interface EscalationArgs {
+  /** The requested target mode, strictly wider than the effective mode it was normalized against. */
+  requestedMode: SandboxMode
+  /** The model's non-empty reason, shown to the user in the approval prompt. */
+  justification: string
+}
+
 /**
- * Validate the escalation argument pairing a tool schema cannot express:
- * `sandbox_permissions` and `justification` travel together — an approval
- * prompt without a reason, or a reason driving nothing, is a malformed ask —
- * and the justification must be a non-empty sentence.
- * @param sandboxPermissions - the raw `sandbox_permissions` argument, if given.
- * @param justification - the raw `justification` argument, if given.
+ * Reduce raw `sandbox_permissions`/`justification` tool arguments to a genuine
+ * escalation request. A strict-schema endpoint (an OpenAI Responses request
+ * that omits `strict` is normalized to all-properties-required) makes the model
+ * emit both optional fields on every call, filled with the current or a
+ * narrower mode, an empty string, or `null`. Only a `sandbox_permissions`
+ * strictly wider than `effectiveMode` (see {@link WIDER_MODES}) requests
+ * escalation. Any other value (absent, `null`, empty, same, narrower, or
+ * unknown), and any value when no confining backend is mounted
+ * (`effectiveMode` undefined), requests nothing, and `justification` is then
+ * ignored whatever its value. A genuine request requires a non-empty
+ * justification and still passes through {@link approveEscalation}.
+ * @param sandboxPermissions - the raw `sandbox_permissions` argument.
+ * @param justification - the raw `justification` argument.
+ * @param effectiveMode - the call's standing mode, or `undefined` when no confining backend is mounted.
+ * @returns the escalation to approve, or `undefined` when the call runs at its standing mode.
+ * @throws Error when a strictly wider mode carries no justification or a blank one.
  */
-export function validateEscalationArgs(sandboxPermissions: string | undefined, justification: string | undefined): void {
-  if (sandboxPermissions !== undefined && justification === undefined) {
+export function normalizeEscalationArgs(
+  sandboxPermissions: string | null | undefined,
+  justification: string | null | undefined,
+  effectiveMode: SandboxMode | undefined,
+): EscalationArgs | undefined {
+  if (effectiveMode === undefined || sandboxPermissions === null || sandboxPermissions === undefined) return undefined
+  const requestedMode = (WIDER_MODES[effectiveMode] ?? []).find(mode => mode === sandboxPermissions)
+  if (requestedMode === undefined) return undefined
+  if (justification === null || justification === undefined) {
     throw new Error('invalid escalation: sandbox_permissions requires a justification')
   }
-  if (justification !== undefined && sandboxPermissions === undefined) {
-    throw new Error('invalid escalation: justification is only valid together with sandbox_permissions')
-  }
-  if (justification !== undefined && justification.trim().length === 0) {
+  if (justification.trim().length === 0) {
     throw new Error('invalid justification: expected a non-empty sentence')
   }
+  return { requestedMode, justification }
 }
 
 /**

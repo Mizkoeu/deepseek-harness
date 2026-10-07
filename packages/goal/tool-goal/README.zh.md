@@ -37,7 +37,7 @@ kind: "package-reference"
 | `create_goal(objective, max_goal_rounds?)` | 根据人类直接发起的顶层轮次创建一个 goal |
 | `update_goal(goal_id, revision, action, objective?, max_goal_rounds?, blocked_reason?)` | 对精确 goal revision 执行 `edit`、`pause`、`resume`、`complete` 或 `blocked` |
 
-在 `update_goal` 之前调用 `get_goal`，并复制精确的 `goal_id` 与 `revision`；所有调用都互斥，因此模型排序的批次能观察到更早变更及其新 revision。替换值只属于 `edit`；`blocked_reason` 只有在 `blocked` 时才必填，并以稳定代码 `model-reported` 持久化。严格 schema 下的空字符串和零填充值视为省略，而有意义的值仍限定到各自 action。
+在 `update_goal` 之前调用 `get_goal`，并复制精确的 `goal_id` 与 `revision`；所有调用都互斥，因此模型排序的批次能观察到更早变更及其新 revision。`objective` 与 `max_goal_rounds` 仅在 `edit` 下生效，其中空字符串或零视为省略；其他 action 无论取值如何都会忽略它们，因为严格 schema 端点会让模型填充每个可选字段。`blocked_reason` 只有在 `blocked` 时才必填，在其他 action 上会被拒绝，并以稳定代码 `model-reported` 持久化。
 
 ### 配置
 

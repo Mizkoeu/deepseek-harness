@@ -995,18 +995,45 @@ describe('sandbox escalation API (write/edit)', () => {
     expect(text(result)).toContain('no agent to route it through')
   })
 
-  it('rejects the escalation argument pairing (one field without the other)', async () => {
-    const { ctx } = await setupConfining()
-    const missing = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write' }, escalationAgent())
+  it('requires a non-empty justification only for a strictly wider mode', async () => {
+    const { ctx, fs } = await setupConfining({ approval: true })
+    const missing = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'danger-full-access' }, escalationAgent())
     expect(missing.isError).toBe(true)
-    expect(text(missing)).toContain('sandbox_permissions requires a justification')
+    expect(text(missing)).toContain('invalid escalation: sandbox_permissions requires a justification')
+    const blank = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'x', new_string: 'y', sandbox_permissions: 'danger-full-access', justification: '' }, escalationAgent())
+    expect(blank.isError).toBe(true)
+    expect(text(blank)).toContain('invalid justification: expected a non-empty sentence')
+    expect(fs.stamped).toEqual([])
   })
 
-  it('sandbox_permissions under a non-confining backend fails closed (unadvertised field still reaches execute)', async () => {
+  it.each([
+    ['a same-mode filler with a blank justification', 'workspace-write', '', []],
+    ['a same-mode filler without a justification', 'workspace-write', undefined, []],
+    ['a narrower filler', 'workspace-write', '', [{ type: 'sandbox/mode', data: { mode: 'danger-full-access' } }]],
+    ['a narrower filler with a sentence', 'workspace-write', 'filled reason', [{ type: 'sandbox/mode', data: { mode: 'danger-full-access' } }]],
+    ['a lone justification', undefined, 'orphan reason', []],
+  ] as const)('writes and edits with %s at the standing mode without approval', async (_label, mode, justification, records) => {
+    const { ctx, fs } = await setupConfining({ approval: true })
+    const prompted = vi.fn()
+    ctx.on('approval/request', () => { prompted(); return Promise.resolve('allowed-once' as const) })
+    const fillers = {
+      ...mode === undefined ? {} : { sandbox_permissions: mode },
+      ...justification === undefined ? {} : { justification },
+    }
+    const agent = escalationAgent([...records])
+    const written = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', ...fillers }, agent)
+    expect(written.isError, text(written)).toBe(false)
+    const edited = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'x', new_string: 'y', ...fillers }, agent)
+    expect(edited.isError, text(edited)).toBe(false)
+    const standing = records.length === 0 ? 'workspace-write' : 'danger-full-access'
+    expect(fs.stamped.map(policy => policy?.mode)).toEqual([standing, standing])
+    expect(prompted).not.toHaveBeenCalled()
+  })
+
+  it('ignores escalation fields under a non-confining backend (unadvertised fields still reach execute)', async () => {
     const { ctx } = await setup()
     const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'x', sandbox_permissions: 'workspace-write', justification: 'why' }, escalationAgent())
-    expect(result.isError).toBe(true)
-    expect(text(result)).toContain('not available in this composition')
+    expect(result.isError, text(result)).toBe(false)
   })
 })
 

@@ -705,20 +705,22 @@ describe('sandbox escalation through the generic task producer', () => {
     await expect(ctx.plugin(ToolBash)).rejects.toThrow('tool-bash: the mounted bash executor confines but ctx.sandboxPolicy is missing')
   })
 
-  it('advertises the sandbox fields and validates their pairing', async () => {
-    const { ctx } = await setupSandboxed()
+  it('advertises the sandbox fields and requires a justification for a wider mode', async () => {
+    const { ctx, bash } = await setupSandboxed()
     const schema = ctx.tools.schemas().find(item => item.name === 'bash')!
     const properties = schema.parameters.properties as Record<string, { enum?: string[]; description?: string }>
     expect(properties['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
     expect(properties['sandbox_permissions']?.description).toContain('asks the user for approval')
 
-    for (const args of [
-      { command: 'true', description: 'd', sandbox_permissions: 'workspace-write' },
-      { command: 'true', description: 'd', justification: 'why' },
-      { command: 'true', description: 'd', sandbox_permissions: 'workspace-write', justification: ' ' },
-    ]) {
-      expect((await call(ctx, 'bash', args)).isError).toBe(true)
-    }
+    expect(text(await call(ctx, 'bash', { command: 'true', description: 'd', sandbox_permissions: 'workspace-write' }, sandboxAgent())))
+      .toContain('invalid escalation: sandbox_permissions requires a justification')
+    expect(text(await call(ctx, 'bash', { command: 'true', description: 'd', sandbox_permissions: 'workspace-write', justification: ' ' }, sandboxAgent())))
+      .toContain('invalid justification: expected a non-empty sentence')
+    expect(bash.modes).toEqual([])
+
+    const lone = await call(ctx, 'bash', { command: 'true', description: 'd', justification: 'why' }, sandboxAgent())
+    expect(lone.isError, text(lone)).toBe(false)
+    expect(bash.modes).toEqual(['read-only'])
   })
 
   it.each([undefined, '', ' \t\n'])('runs without escalation for justification %j', async (justification) => {
@@ -753,24 +755,40 @@ describe('sandbox escalation through the generic task producer', () => {
     }
   })
 
-  it('rejects injected escalation without a sandbox and narrower escalation without prompting', async () => {
+  it('ignores escalation fields without a confining executor', async () => {
     const plain = await setup()
-    expect(text(await call(plain, 'bash', escalate))).toContain('not available in this composition')
+    const result = await call(plain, 'bash', escalate)
+    expect(result.isError, text(result)).toBe(false)
+  })
 
-    const { ctx } = await setupSandboxed(true)
+  it.each(['', 'filled reason'])('runs a narrower filler with justification %j at the standing mode without prompting', async (justification) => {
+    const { ctx, bash } = await setupSandboxed(true)
+    try {
+      const prompted = vi.fn()
+      ctx.on('approval/request', () => { prompted(); return Promise.resolve<ApprovalOutcome>('allowed-once') })
+      const result = await call(ctx, 'bash', { ...escalate, sandbox_permissions: 'workspace-write', justification }, sandboxAgent('danger-full-access'))
+      expect(result.isError, text(result)).toBe(false)
+      expect(bash.modes).toEqual(['danger-full-access'])
+      expect(prompted).not.toHaveBeenCalled()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('runs escalation fields under a malformed standing mode without prompting', async () => {
+    const { ctx, bash } = await setupSandboxed(true)
     const prompted = vi.fn()
     ctx.on('approval/request', () => { prompted(); return Promise.resolve<ApprovalOutcome>('allowed-once') })
-    const result = await call(ctx, 'bash', { ...escalate, sandbox_permissions: 'workspace-write' }, sandboxAgent('danger-full-access'))
-    expect(text(result)).toContain('not strictly wider')
-    expect(prompted).not.toHaveBeenCalled()
-
     const malformed = sandboxAgent()
     ;(malformed.session.snapshotEvents() as unknown as Array<{ type: string; data: { mode: string }; seq: number }>).push({
       type: 'sandbox/mode',
       data: { mode: 'unknown-mode' },
       seq: malformed.session.seq,
     })
-    expect(text(await call(ctx, 'bash', escalate, malformed))).toContain('not strictly wider')
+    const result = await call(ctx, 'bash', escalate, malformed)
+    expect(result.isError, text(result)).toBe(false)
+    expect(bash.modes).toEqual(['unknown-mode'])
+    expect(prompted).not.toHaveBeenCalled()
   })
 
   it.each(['workspace-write', 'danger-full-access'] as const)('runs a repeated %s request without approval', async (mode) => {

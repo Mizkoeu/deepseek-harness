@@ -269,11 +269,10 @@ export function apply(ctx: Context, config: Config): void {
       }
       if (args.action === 'pause' || args.action === 'resume') {
         requireDirectHuman(ctx, execution)
-        if (hasText(args.objective) || hasRoundCap(args.max_goal_rounds) || hasText(args.blocked_reason)) {
-          throw new HarnessError(
-            'objective and max_goal_rounds are valid only with action edit; blocked_reason is valid only with action blocked',
-            'GOAL_TOOL_INVALID_UPDATE',
-          )
+        // objective and max_goal_rounds take effect only through edit; strict-schema
+        // endpoints fill them on every action, so other actions ignore them.
+        if (hasText(args.blocked_reason)) {
+          throw new HarnessError('blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE')
         }
         const current = ctx.goals.get(execution.agent)
         if (args.action === 'resume' && current?.id === ref.id && current.revision === ref.revision
@@ -289,12 +288,6 @@ export function apply(ctx: Context, config: Config): void {
         return Promise.resolve(goalValue(goal))
       }
       const authority = completionAuthority(ctx, execution)
-      if (hasText(args.objective) || hasRoundCap(args.max_goal_rounds)) {
-        throw new HarnessError(
-          'objective and max_goal_rounds are valid only with action edit',
-          'GOAL_TOOL_INVALID_UPDATE',
-        )
-      }
       if (args.action === 'complete' && hasText(args.blocked_reason)) {
         throw new HarnessError('blocked_reason is valid only with action blocked', 'GOAL_TOOL_INVALID_UPDATE')
       }

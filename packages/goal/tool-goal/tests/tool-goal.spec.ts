@@ -470,20 +470,10 @@ describe('goal tool state transitions', () => {
     const invalidCreate = await execute(ctx, 'create_goal', { objective: ' ' }, root.agent)
     expect(invalidCreate.error?.info?.code).toBe('GOAL_INVALID_OBJECTIVE')
     const created = ctx.goals.create(root.agent, { objective: 'valid' })
-    const replacement = await execute(ctx, 'update_goal', {
-      goal_id: created.id,
-      revision: created.revision,
-      action: 'pause',
-      objective: 'not valid for pause',
+    const pauseWithReason = await execute(ctx, 'update_goal', {
+      goal_id: created.id, revision: created.revision, action: 'pause', blocked_reason: 'Not valid for pause.',
     }, root.agent)
-    expect(replacement.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
-    const terminalUpdate = await execute(ctx, 'update_goal', {
-      goal_id: created.id,
-      revision: created.revision,
-      action: 'complete',
-      max_goal_rounds: 2,
-    }, root.agent)
-    expect(terminalUpdate.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
+    expect(pauseWithReason.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
     const blockedWithoutReason = await execute(ctx, 'update_goal', {
       goal_id: created.id, revision: created.revision, action: 'blocked',
     }, root.agent)
@@ -581,6 +571,42 @@ describe('goal tool state transitions', () => {
       blocked_reason: '',
     }, root.agent)
     expect(resultGoal(complete)).toMatchObject({ phase: 'complete', objective: 'edited' })
+  })
+
+  it('ignores non-empty edit-only fillers on every other action', async () => {
+    const { ctx, root } = await harness()
+    openTurn(root, { kind: 'user' })
+    let goal = ctx.goals.create(root.agent, { objective: 'original', maxGoalRounds: 8 })
+    const unchanged = { objective: 'original', maxGoalRounds: 8 }
+
+    const paused = await execute(ctx, 'update_goal', {
+      goal_id: goal.id, revision: goal.revision, action: 'pause',
+      objective: 'ignored on pause', max_goal_rounds: 6, blocked_reason: '',
+    }, root.agent)
+    expect(resultGoal(paused)).toMatchObject({ phase: 'paused', ...unchanged })
+    goal = ctx.goals.get(root.agent)!
+    goal = ctx.goals.resume(root.agent, { id: goal.id, revision: goal.revision })
+    goal = ctx.goals.disarm(root.agent)!
+
+    const resumed = await execute(ctx, 'update_goal', {
+      goal_id: goal.id, revision: goal.revision, action: 'resume',
+      objective: 'ignored on resume', max_goal_rounds: 7, blocked_reason: '',
+    }, root.agent)
+    expect(resultGoal(resumed)).toMatchObject({ phase: 'active', ...unchanged })
+    goal = ctx.goals.get(root.agent)!
+
+    const blocked = await execute(ctx, 'update_goal', {
+      goal_id: goal.id, revision: goal.revision, action: 'blocked',
+      objective: 'ignored on blocked', max_goal_rounds: 5, blocked_reason: 'actual blocker',
+    }, root.agent)
+    expect(resultGoal(blocked)).toMatchObject({ phase: 'blocked', ...unchanged })
+    goal = ctx.goals.resume(root.agent, { id: goal.id, revision: goal.revision + 1 })
+
+    const complete = await execute(ctx, 'update_goal', {
+      goal_id: goal.id, revision: goal.revision, action: 'complete',
+      objective: 'ignored on complete', max_goal_rounds: 9, blocked_reason: '',
+    }, root.agent)
+    expect(resultGoal(complete)).toMatchObject({ phase: 'complete', ...unchanged })
   })
 
   it('allows exact goal rounds to complete but not edit or pause', async () => {

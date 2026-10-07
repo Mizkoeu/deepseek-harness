@@ -14,11 +14,11 @@ export {
   WIDER_MODES,
   approveEscalation,
   escalationHintMarker,
+  normalizeEscalationArgs,
   sandboxDenialMarker,
   sandboxPermissionsDescription,
-  validateEscalationArgs,
 } from './escalation.ts'
-export type { EscalationApproval, EscalationApprover, EscalationOutcome, EscalationRequest } from './escalation.ts'
+export type { EscalationApproval, EscalationApprover, EscalationArgs, EscalationOutcome, EscalationRequest } from './escalation.ts'
 export { canonicalPath, writableRoots } from './roots.ts'
 
 /**

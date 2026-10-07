@@ -17,7 +17,7 @@ declare module '@deepseek-ai/dsh-llm' {
 
 import type { ContentBlock, ToolCallId, ToolSchema } from '@deepseek-ai/dsh-llm'
 import type { PtcBindingFunction, PtcRunResult, PtcRunSandbox, PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
-import { approveEscalation, ESCALATION_TARGETS, validateEscalationArgs } from '@deepseek-ai/dsh-sandbox'
+import { approveEscalation, ESCALATION_TARGETS, normalizeEscalationArgs } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
 import type { ApprovalService } from '@deepseek-ai/dsh-user-approval'
 import { deepFreeze, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -382,7 +382,6 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         throw new Error('invalid description: expected a non-empty string')
       }
       const runtime = requireRuntime()
-      validateEscalationArgs(args.sandbox_permissions, args.justification)
       if (args.timeoutMs !== undefined && runtime.timeout === undefined) {
         throw new Error('timeoutMs is not available for this PTC runtime')
       }
@@ -391,18 +390,17 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
       }
       const standingPolicy = runtime.sandboxMode === undefined ? undefined : options.resolveSandboxPolicy(exec)
       let policy = standingPolicy
-      if (args.sandbox_permissions !== undefined && args.justification !== undefined) {
-        if (standingPolicy === undefined) throw new Error('sandbox_permissions is not available for this PTC runtime')
-        const approvedMode = await approveEscalation({
-          requestedMode: args.sandbox_permissions,
-          justification: args.justification,
-          effectiveMode: standingPolicy.mode,
-          subject: 'program',
-        }, {
+      // Strict-schema fillers and non-widening modes reduce to no escalation;
+      // only a strictly wider mode asks for approval.
+      const escalation = normalizeEscalationArgs(args.sandbox_permissions, args.justification, standingPolicy?.mode)
+      if (escalation !== undefined) {
+        // A genuine escalation implies a policy-enforcing runtime, so the standing policy exists.
+        const confined = standingPolicy as SandboxExecutionPolicy
+        const approvedMode = await approveEscalation({ ...escalation, effectiveMode: confined.mode, subject: 'program' }, {
           approver: options.peekApprover(), agent: exec.agent, callId: exec.callId,
           toolName: RUN_CODE_NAME, signal: exec.signal,
         })
-        policy = { ...standingPolicy, mode: approvedMode }
+        policy = { ...confined, mode: approvedMode }
       }
       exec.signal.throwIfAborted()
 

@@ -30,11 +30,11 @@
   en: 4a487e48ef146846
   zh: 0a34dc49bffb03af
 /deepseek-ai-dsh-tool-pwsh/use-this-package/windows-specific-sandbox-behavior:
-  en: 76f3f791f53d1005
-  zh: e5b262db24e6eb83
+  en: 7c4141fc738f257c
+  zh: e22f965cd335f057
 /deepseek-ai-dsh-tool-pwsh/use-this-package/what-can-go-wrong:
-  en: c1a9cc1201ed3a89
-  zh: a43a659d350e9d4a
+  en: 539be86c2e99dc76
+  zh: 871303ed7fa628b3
 /deepseek-ai-dsh-tool-pwsh/understand-the-implementation:
   en: 8d94a7381bca3fa9
   zh: f4bd2866fff6fa8d
@@ -108,8 +108,8 @@
   en: 2d4f2c8605eccab3
   zh: 67f1f0218f73c6bf
 /deepseek-ai-dsh-tool-pwsh/model-experience/tool-errors/what-the-model-sees:
-  en: f0802a10dbe0f7d2
-  zh: 80f8b312dcfc0065
+  en: 206dec91c297b563
+  zh: 77305ebdfa48562d
 /deepseek-ai-dsh-tool-pwsh/model-experience/tool-errors/token-effect:
   en: 243bad012dd99c7f
   zh: 5ee74905020bd49a
