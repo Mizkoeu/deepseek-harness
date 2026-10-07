@@ -129,7 +129,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface SidebarOwnerProps {
   /** True when the sidebar is closed (the column renders the compact control rail). */
   collapsed: boolean
-  /** Rendered navigation-surface width in px; phone collapse uses the smaller floating toggle. */
+  /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
   width: number
 }
 

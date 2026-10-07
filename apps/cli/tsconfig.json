@@ -54,9 +54,6 @@
       "path": "../../packages/util/home-paths"
     },
     {
-      "path": "../../packages/llm/llm-pi-ai"
-    },
-    {
       "path": "../../packages/mcp/mcp-client"
     },
     {

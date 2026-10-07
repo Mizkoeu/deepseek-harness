@@ -470,10 +470,20 @@ describe('goal tool state transitions', () => {
     const invalidCreate = await execute(ctx, 'create_goal', { objective: ' ' }, root.agent)
     expect(invalidCreate.error?.info?.code).toBe('GOAL_INVALID_OBJECTIVE')
     const created = ctx.goals.create(root.agent, { objective: 'valid' })
-    const pauseWithReason = await execute(ctx, 'update_goal', {
-      goal_id: created.id, revision: created.revision, action: 'pause', blocked_reason: 'Not valid for pause.',
+    const replacement = await execute(ctx, 'update_goal', {
+      goal_id: created.id,
+      revision: created.revision,
+      action: 'pause',
+      objective: 'not valid for pause',
     }, root.agent)
-    expect(pauseWithReason.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
+    expect(replacement.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
+    const terminalUpdate = await execute(ctx, 'update_goal', {
+      goal_id: created.id,
+      revision: created.revision,
+      action: 'complete',
+      max_goal_rounds: 2,
+    }, root.agent)
+    expect(terminalUpdate.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
     const blockedWithoutReason = await execute(ctx, 'update_goal', {
       goal_id: created.id, revision: created.revision, action: 'blocked',
     }, root.agent)
@@ -500,7 +510,7 @@ describe('goal tool state transitions', () => {
     expect(malformedRef.error?.info?.code).toBe('GOAL_TOOL_INVALID_UPDATE')
   })
 
-  it('ignores edit-only fields on non-edit actions, whatever their filler value', async () => {
+  it('accepts only empty fillers in fields unused by the selected action', async () => {
     const { ctx, root } = await harness()
     openTurn(root, { kind: 'user' })
     let goal = ctx.goals.create(root.agent, { objective: 'valid' })
@@ -527,18 +537,15 @@ describe('goal tool state transitions', () => {
     expect(resultGoal(capped)).toMatchObject({ objective: 'edited', maxGoalRounds: 8 })
     goal = ctx.goals.get(root.agent)!
 
-    // The strict-schema footgun: a non-edit action fills these edit-only fields
-    // with plausible NON-empty values. They must be ignored (neither rejected
-    // nor applied): the cap stays 8 and the objective stays 'edited' throughout.
     const paused = await execute(ctx, 'update_goal', {
       goal_id: goal.id,
       revision: goal.revision,
       action: 'pause',
-      objective: 'ignored on pause',
-      max_goal_rounds: 6,
+      objective: '',
+      max_goal_rounds: 0,
       blocked_reason: '',
     }, root.agent)
-    expect(resultGoal(paused)).toMatchObject({ phase: 'paused', objective: 'edited', maxGoalRounds: 8 })
+    expect(resultGoal(paused)).toMatchObject({ phase: 'paused', objective: 'edited' })
     goal = ctx.goals.get(root.agent)!
     goal = ctx.goals.resume(root.agent, { id: goal.id, revision: goal.revision })
     goal = ctx.goals.disarm(root.agent)!
@@ -547,33 +554,33 @@ describe('goal tool state transitions', () => {
       goal_id: goal.id,
       revision: goal.revision,
       action: 'resume',
-      objective: 'ignored on resume',
-      max_goal_rounds: 7,
+      objective: '',
+      max_goal_rounds: 0,
       blocked_reason: '',
     }, root.agent)
-    expect(resultGoal(resumed)).toMatchObject({ phase: 'active', objective: 'edited', maxGoalRounds: 8 })
+    expect(resultGoal(resumed)).toMatchObject({ phase: 'active', objective: 'edited' })
     goal = ctx.goals.get(root.agent)!
 
     const blocked = await execute(ctx, 'update_goal', {
       goal_id: goal.id,
       revision: goal.revision,
       action: 'blocked',
-      objective: 'ignored on blocked',
-      max_goal_rounds: 5,
+      objective: '',
+      max_goal_rounds: 0,
       blocked_reason: 'actual blocker',
     }, root.agent)
-    expect(resultGoal(blocked)).toMatchObject({ phase: 'blocked', objective: 'edited', maxGoalRounds: 8 })
+    expect(resultGoal(blocked)).toMatchObject({ phase: 'blocked' })
     goal = ctx.goals.resume(root.agent, { id: goal.id, revision: goal.revision + 1 })
 
     const complete = await execute(ctx, 'update_goal', {
       goal_id: goal.id,
       revision: goal.revision,
       action: 'complete',
-      objective: 'ignored on complete',
-      max_goal_rounds: 9,
+      objective: '',
+      max_goal_rounds: 0,
       blocked_reason: '',
     }, root.agent)
-    expect(resultGoal(complete)).toMatchObject({ phase: 'complete', objective: 'edited', maxGoalRounds: 8 })
+    expect(resultGoal(complete)).toMatchObject({ phase: 'complete', objective: 'edited' })
   })
 
   it('allows exact goal rounds to complete but not edit or pause', async () => {
