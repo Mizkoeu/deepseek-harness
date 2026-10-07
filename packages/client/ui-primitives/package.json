@@ -31,6 +31,7 @@
     "react": "^18.2.0",
     "clsx": "^2.0.0",
     "diff": "^9.0.0",
+    "dompurify": "^3.4.11",
     "react-dom": "^18.2.0",
     "anser": "^2.3.5",
     "katex": "^0.16.47",
@@ -48,6 +49,7 @@
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-gfm": "^3.1.0",
     "mdast-util-math": "^3.0.0",
+    "mermaid": "11.16.0",
     "micromark-extension-gfm": "^3.0.0",
     "micromark-util-sanitize-uri": "^2.0.1",
     "simple-icons": "16.31.0"

@@ -4486,6 +4486,9 @@ importers:
       diff:
         specifier: ^9.0.0
         version: 9.0.0
+      dompurify:
+        specifier: ^3.4.11
+        version: 3.4.11
       katex:
         specifier: ^0.16.47
         version: 0.16.47
@@ -4498,6 +4501,9 @@ importers:
       mdast-util-math:
         specifier: ^3.0.0
         version: 3.0.0
+      mermaid:
+        specifier: 11.16.0
+        version: 11.16.0
       micromark-core-commonmark:
         specifier: ^2.0.3
         version: 2.0.3

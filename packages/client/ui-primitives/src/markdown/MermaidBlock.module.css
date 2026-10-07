@@ -1,0 +1,25 @@
+/* Diagram body inside the shared code card (CodeCard.module.css owns the card,
+   toolbar, padding, and the horizontal scrollport). */
+
+.body {
+  font-family: var(--dsw-font-family);
+}
+
+/* Mermaid's inline max-width caps the SVG at its intrinsic width and its
+   100% width shrinks it to the card. Below 60% of the intrinsic width the
+   floor holds and the card body scrolls horizontally instead, so labels stay
+   legible on narrow screens. Auto inline margins center a narrow diagram and
+   resolve to zero once it overflows, so no overflow is clipped. */
+.diagram :where(svg) {
+  display: block;
+  height: auto;
+  min-width: calc(var(--dsl-mermaid-width, 0px) * 0.6);
+  margin-inline: auto;
+}
+
+.source {
+  margin: 0;
+  font: var(--dsw-font-markdown-code-block);
+  color: var(--dsw-alias-label-tertiary);
+  white-space: pre;
+}

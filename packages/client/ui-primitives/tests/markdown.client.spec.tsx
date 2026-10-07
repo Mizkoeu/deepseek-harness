@@ -550,6 +550,77 @@ describe('MarkdownText', () => {
     expect(mathCompatibility()).toBe(extension)
   })
 
+  it('typesets every supported delimiter, fenced math, and multi-line environments through KaTeX', () => {
+    const cases = [
+      { source: 'Inline $a^2$ here.', display: 0, value: 'a^2' },
+      { source: '$$\\int_0^1 x\\,dx$$', display: 1, value: '\\int_0^1 x\\,dx' },
+      { source: 'Paren \\(x\\) here.', display: 0, value: 'x' },
+      { source: '\\[x\\]', display: 1, value: 'x' },
+      { source: '```math\nE = mc^2\n```', display: 1, value: 'E = mc^2\n' },
+      {
+        source: '$$\n\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}\n$$',
+        display: 1,
+        value: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}',
+      },
+      {
+        source: '\\[\n\\begin{aligned}\nf(x) &= x^2 \\\\\ng(x) &= 2x\n\\end{aligned}\n\\]',
+        display: 1,
+        value: '\\begin{aligned}\nf(x) &= x^2 \\\\\ng(x) &= 2x\n\\end{aligned}',
+      },
+      { source: 'Matrix $\\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}$ inline.', display: 0, value: '\\begin{bmatrix} 1 & 0 \\\\ 0 & 1 \\end{bmatrix}' },
+    ]
+
+    for (const item of cases) {
+      const rendered = render(<MarkdownText text={item.source} />)
+      expect(rendered.container.querySelectorAll('.katex'), item.source).toHaveLength(1)
+      expect(rendered.container.querySelectorAll('.katex-display'), item.source).toHaveLength(item.display)
+      expect(rendered.container.querySelector('.katex-html'), item.source).not.toBeNull()
+      expect(rendered.container.querySelector('.katex-error'), item.source).toBeNull()
+      expect(rendered.container.querySelector('annotation')?.textContent, item.source).toBe(item.value)
+      rendered.unmount()
+    }
+  })
+
+  it('keeps dollar amounts as prose under the single-dollar spacing rule', () => {
+    const prose = [
+      'It costs $5 and $10.',
+      'Price: $5, $10, or $20.',
+      'I have $5. You have $10.',
+      'US$5 and US$10',
+      'between $1,000 and $2,000 dollars',
+      'a $ b $ c',
+      '$x$5',
+      '$a\\',
+    ]
+    for (const source of prose) {
+      const rendered = render(<MarkdownText text={source} />)
+      expect(rendered.container.querySelector('.katex'), source).toBeNull()
+      expect(rendered.container.textContent, source).toBe(source)
+      rendered.unmount()
+    }
+
+    const mixed = render(<MarkdownText text={'Area $\\pi r^2$ costs $5, and $\\$5$ is TeX; from $5 to $x^2$.'} />)
+    expect([...mixed.container.querySelectorAll('annotation')].map(node => node.textContent))
+      .toEqual(['\\pi r^2', '\\$5', 'x^2'])
+    expect(mixed.container.textContent).toContain('costs $5, and')
+    expect(mixed.container.textContent).toContain('from $5 to')
+  })
+
+  it('keeps double-dollar inline math and multi-line single-dollar math on the upstream grammar', () => {
+    const cases = [
+      { source: 'Inline $$x + y$$ stays inline.', value: 'x + y' },
+      { source: 'Wrapped $a +\nb$ math.', value: 'a +\nb' },
+      { source: '$$a$ unbalanced', value: undefined },
+      { source: 'Escaped \\$$x$ opener.', value: 'x' },
+    ]
+    for (const item of cases) {
+      const rendered = render(<MarkdownText text={item.source} />)
+      expect(rendered.container.querySelector('.katex-display'), item.source).toBeNull()
+      expect(rendered.container.querySelector('annotation')?.textContent, item.source).toBe(item.value)
+      rendered.unmount()
+    }
+  })
+
   it('defers TeX rendering while streaming so incomplete formulas never flash KaTeX errors', () => {
     const partial = '$$\n\\frac{\\partial \\mathbf{u}}{\\partial'
     const complete = '$$\n\\frac{\\partial \\mathbf{u}}{\\partial t}\n$$'

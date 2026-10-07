@@ -7,7 +7,8 @@
  * External link and image destinations pass a protocol allowlist; settled
  * local file links use an explicit owner callback. Images additionally require
  * absolute HTTP(S), raw HTML renders as literal text (no HTML enters the
- * DOM), and KaTeX runs without trusted commands. Fragment-anchor URLs fail
+ * DOM), KaTeX runs without trusted commands, and settled Mermaid SVG is
+ * sanitized before insertion (`mermaid.ts`). Fragment-anchor URLs fail
  * the allowlist, so footnote references and back-references render as plain
  * text rather than in-page links.
  *
@@ -26,6 +27,7 @@ import type { CodeToolbarLabels } from '../CodeToolbar.tsx'
 import { CodeBlock } from './CodeBlock.tsx'
 import { parseFileLink } from './file-link.ts'
 import { renderTexToReact } from './katex.tsx'
+import { MermaidBlock } from './MermaidBlock.tsx'
 import { LinkIconMedium, classifyLinkPath } from '../LinkIcon.tsx'
 import { useMarkdownDelegate } from './MarkdownDelegate.tsx'
 import { HoverCard } from '../HoverCard.tsx'
@@ -183,7 +185,10 @@ export interface MarkdownFileMentions {
  * numbering accumulated in document order while references render.
  */
 export interface MarkdownRenderContext {
-  /** Streaming arm: fences highlight incrementally as they grow; TeX (including ```math fences) stays literal until the settled pass. */
+  /**
+   * Streaming arm: fences highlight incrementally as they grow; TeX (including
+   * ```math fences) and ```mermaid diagrams stay source until the settled pass.
+   */
   readonly streaming: boolean
   /** Localized fence copy-button labels. */
   readonly labels: MarkdownLabels
@@ -389,6 +394,11 @@ function renderCode(node: Md.Code, key: Key, context: MarkdownRenderContext): Re
     // ```math fences render as display TeX once settled (rehype-katex parity);
     // its text extraction saw the code block's trailing newline.
     return <Fragment key={key}>{renderTexToReact(`${node.value}\n`, true)}</Fragment>
+  }
+  if (!context.streaming && lang?.toLowerCase() === 'mermaid') {
+    // Settled ```mermaid fences render as diagrams; a streaming fence keeps
+    // the code arm below, so incomplete source never reaches Mermaid.
+    return <MermaidBlock key={key} code={node.value} labels={context.labels.code} />
   }
   return (
     <CodeBlock
