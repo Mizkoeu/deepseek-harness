@@ -9,8 +9,11 @@
   en: 2c6b665adc256b4e
   zh: 2240e4c1573ebe9c
 /configure-models/add-a-third-party-provider:
-  en: 0fe5f88e692f618c
-  zh: 4f2e493818d8934f
+  en: caa7c7204d48690b
+  zh: 5fbdfe6662a5d094
+/configure-models/sign-in-to-github-copilot:
+  en: 7bdb8b5fa388c357
+  zh: 160841c2120618b1
 /configure-models/add-a-custom-model-api:
   en: 17867305a3e1b52a
   zh: 876fedf1f6f563e4
@@ -33,5 +36,5 @@
   en: 6f52195d1502783e
   zh: 34dbbeacb541afd4
 /configure-models/troubleshooting:
-  en: 0477cd6fa2772d6b
-  zh: 780619fe998bdef7
+  en: 235b30d331f2b1ab
+  zh: 9fc1274910f63579

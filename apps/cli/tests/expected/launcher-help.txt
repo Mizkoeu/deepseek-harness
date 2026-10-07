@@ -1,5 +1,6 @@
 Usage: dsh [--profile] <name> [options] [app-args...]
        dsh plugin --profile <name> <pnpm-args...>
+       dsh auth <login|status|logout> <provider>
 
 dsh: boot a DeepSeek Harness profile — an ordered stack of plugin-bundle patch
 layers under your own overrides.
@@ -30,3 +31,4 @@ Examples:
   dsh tui --resume <session>                arguments after the launcher flags reach the app
   dsh web --help                            the web app's own flags and help
   dsh plugin --profile tui add <package>    install a plugin into the tui profile
+  dsh auth login github-copilot             sign in to GitHub Copilot for the pi-ai provider

@@ -16,7 +16,29 @@ Keys are write-only. The page receives a redacted descriptor after saving, never
 
 Choose **Add model provider**. The card opens on **Third-party model provider**: pick a provider dsh ships with — the list shows provider ids such as `anthropic`, `openai`, `moonshotai` for Kimi, or `zai` for GLM — enter its API key, and save. The installed catalog supplies the endpoint, protocol, and model list.
 
-Providers that sign in with OAuth, such as Codex, are not supported here yet.
+Providers that sign in with OAuth, such as GitHub Copilot or Codex, cannot sign in from this page. Sign in from a terminal first, as [GitHub Copilot](#sign-in-to-github-copilot) shows, then add the provider here without a key.
+
+<a id="sign-in-to-github-copilot"></a>
+## Sign in to GitHub Copilot
+
+A GitHub Copilot subscription signs in once from a terminal. The command boots no profile, so the Web UI may keep running:
+
+```sh
+dsh auth login github-copilot
+```
+
+Press Enter at the GitHub Enterprise question to use github.com, or pass `--enterprise-domain <domain>` to answer it on the command line. Open the printed GitHub page, enter the printed code, and wait for `GitHub Copilot: signed in`. Ctrl+C cancels without storing anything.
+
+Then choose **Add model provider**, pick `github-copilot`, leave the API key empty, and save. The stored sign-in authenticates each request and renews the short-lived Copilot token by itself, and a running Web UI picks it up without a restart. Leave the key empty later too: a configured key takes priority over the sign-in.
+
+Check or remove the sign-in at any time; neither command prints the token:
+
+```sh
+dsh auth status github-copilot
+dsh auth logout github-copilot
+```
+
+The same commands sign in to any other provider whose installed catalog ships a login, such as `openai-codex`; an id without one is refused with the list of ids that have one. The sign-in is stored in `$DSH_HOME/.credentials.yaml` with owner-only permissions, which keeps it from other users of the machine but not from programs, agent tools included, that run as you. The [CLI reference](../../../apps/cli/reference/README.md#provider-sign-in) owns the exact command behavior.
 
 ## Add a custom model API
 
@@ -192,6 +214,7 @@ Every switch, its accepted values, and the protocols that take it are listed und
 ## Troubleshooting
 
 - **`MISSING_CREDENTIAL`** — Store the provider key through the Models page or supply the referenced environment variable.
+- **GitHub Copilot requests fail as unauthenticated** — Run `dsh auth status github-copilot`; if it is not signed in, run `dsh auth login github-copilot`. Keep the provider's API key empty so the sign-in is used.
 - **`UNKNOWN_MODEL`** — Select a configured model or add the missing model to the custom provider.
 - **Fetching available models returns 401** — Check the key. Model discovery calls the OpenAI-compatible `GET /models` endpoint; enter models manually for endpoints that do not provide it.
 - **Fetching available models reports neither a `data` array nor a `models` object** — The endpoint's listing is in a format discovery does not read. Enter the models by hand.

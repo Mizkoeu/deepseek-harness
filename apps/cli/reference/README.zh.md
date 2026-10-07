@@ -2,13 +2,13 @@
 
 [English](README.md) | 中文
 
-本参考定义 profile 启动、插件管理和配置 dump 等命令模式。argv 由 [`src/args.ts`](../src/args.ts) 统一解析一次，[`src/bin.ts`](../src/bin.ts) 只会动态导入选中的运行器。
+本参考定义 profile 启动、插件管理、提供方登录和配置 dump 等命令模式。argv 由 [`src/args.ts`](../src/args.ts) 统一解析一次，[`src/bin.ts`](../src/bin.ts) 只会动态导入选中的运行器。
 
 <a id="profile-boot"></a>
 
 ## Profile 启动
 
-`dsh <name>` 是 `dsh --profile <name>` 的简写，启动位于 `$DSH_HOME/profiles/<name>` 的 profile。简写中的名称必须紧跟 `dsh`；`plugin` 仍为插件管理命令，因此启动同名 profile 时须使用 `dsh --profile plugin`。生效配置树以空根节点为起点，依次叠加 profile manifest（元数据清单）的 `dsh.profile.bundles` 列表中指定的各组合包 patch、profile 自身的 `cordis.patch.yml`、home 级的 `$DSH_HOME/cordis.patch.yml`（这是各 profile 共享的机器本地偏好，因此优先于逐 profile 配置层），以及按 argv 顺序指定的各个 `--patch <path>` 覆盖层。对同一配置行，后应用的层优先。patch 会替换目标行的整个 `config` 值，而不是深度合并其中的键；patch 也可以插入新行。最终 YAML 组合决定是否由 `dsh-hmr` 监视配置；未启用 HMR 时，更改需要重启。配置解析、schema 校验、模块解析或插件启动失败时，系统会报告错误并以非零状态退出。收到 SIGINT 或 SIGTERM 时，挂载的根节点会先 dispose（资源释放）再退出。
+`dsh <name>` 是 `dsh --profile <name>` 的简写，启动位于 `$DSH_HOME/profiles/<name>` 的 profile。简写中的名称必须紧跟 `dsh`；`plugin` 和 `auth` 仍分别为插件管理命令和提供方登录命令，因此启动这两个名称的 profile 时须使用 `dsh --profile <name>`。生效配置树以空根节点为起点，依次叠加 profile manifest（元数据清单）的 `dsh.profile.bundles` 列表中指定的各组合包 patch、profile 自身的 `cordis.patch.yml`、home 级的 `$DSH_HOME/cordis.patch.yml`（这是各 profile 共享的机器本地偏好，因此优先于逐 profile 配置层），以及按 argv 顺序指定的各个 `--patch <path>` 覆盖层。对同一配置行，后应用的层优先。patch 会替换目标行的整个 `config` 值，而不是深度合并其中的键；patch 也可以插入新行。最终 YAML 组合决定是否由 `dsh-hmr` 监视配置；未启用 HMR 时，更改需要重启。配置解析、schema 校验、模块解析或插件启动失败时，系统会报告错误并以非零状态退出。收到 SIGINT 或 SIGTERM 时，挂载的根节点会先 dispose（资源释放）再退出。
 
 组合包名称先从 dsh 安装目录解析，再从 profile 目录解析。因此，内置组合包（`@deepseek-ai/dsh-base`、`@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-headless`、`@deepseek-ai/dsh-sdk-app`、`@deepseek-ai/dsh-sdk-minimal`、`@deepseek-ai/dsh-acp-app`）始终来自当前运行的 `dsh` 所属的安装；树外组合包来自 profile 中由 pnpm 管理的 `node_modules`。挂载配置行前，launcher 会按此顺序遍历安装与所选 bundle，并将生成的不可变 runtime resolution 安装到 Node 的解析器中。启动不会创建共享或 profile 自有的 fallback 链接。profile 已安装包保留原生优先级；profile 初始化和包管理器写入与运行时解析相互独立。
 
@@ -29,7 +29,7 @@ dsh rescue
 
 每套组合只会挂载一次。普通插件注入 `cmdlineArgs`，解析所属应用的参数，并将解析结果作为服务提供。每个从 flag 取值的配置行都会注入该服务；Loader 会等到服务激活后，再对该行的配置求值（`port: !!js ctx.webStartup.port ?? 3080`），因此 flag 的优先级高于配置行中写明的值。要维持这一优先级，配置行必须保留该表达式；如果用户 patch 用字面量替换整个 `config`，也会随之移除运行时读取。帮助参数和被拒绝的参数都会请求退出：参数被拒绝时以非零状态退出，显示帮助时以 0 退出；依赖该提供方服务的配置行不会激活。启用 HMR 时，编辑 patch 文件会根据仍在运行的服务重新计算表达式，因此不会重置当前正在使用的端口。
 
-启动器的 flag 必须写在应用参数之前，且启动器的解析器会消耗掉一个 `--`：必须以字面量 `--` 送达应用的参数需要写成 `-- --`。`plugin` 仅在紧跟 `dsh` 时选择插件管理命令；选定 profile 后，`plugin` 和 `web` 都是普通应用参数。应用参数开始之前，重复指定 `--profile` 会被拒绝，包括简写后再指定 `--profile` 的情况。`ctx.cmdlineArgs.get()` 是共享的不可变读取：多个插件可以解析同一份快照，没有读取方的 profile 则会忽略自己的应用参数。
+启动器的 flag 必须写在应用参数之前，且启动器的解析器会消耗掉一个 `--`：必须以字面量 `--` 送达应用的参数需要写成 `-- --`。`plugin` 和 `auth` 仅在紧跟 `dsh` 时选择各自的命令；选定 profile 后，`plugin`、`auth` 和 `web` 都是普通应用参数。应用参数开始之前，重复指定 `--profile` 会被拒绝，包括简写后再指定 `--profile` 的情况。`ctx.cmdlineArgs.get()` 是共享的不可变读取：多个插件可以解析同一份快照，没有读取方的 profile 则会忽略自己的应用参数。
 
 随附的应用接受以下命令行参数：
 
@@ -77,6 +77,13 @@ dsh --profile web --patch ./extra.yml --dump-config
 报告包含 DSH 和 Node 版本、平台、profile、根配置路径、每个未激活插件的模块与状态、原始错误，以及启动期间的警告和错误参数，包括尚无 Fiber 的导入错误。Node 检查输出保留嵌套原因、聚合成员、循环引用、不可枚举属性和 Symbol 属性，并关闭深度、字符串及数组长度限制。自定义检查函数被禁用，访问器只描述而不求值。收集器包含失败后的异步清理日志，并在启动结算后停止。它不会独立于已记录错误额外收集环境变量或配置内容。插件原始错误可能包含配置或凭据值；报告开头会提醒读者在分享前检查内容。报告不脱敏。
 
 在 POSIX 上，新目录和文件分别请求 `0700` 和 `0600` 权限。CLI 仅在写入成功后输出文件路径。如果日志目录或文件无法写入，stderr 会包含写入错误及完整报告，退出码仍为 1。只有可选插件激活异常时，维持正常警告输出，不创建报告。
+
+<a id="provider-sign-in"></a>
+## 提供方登录
+
+`dsh auth login <provider>` 不启动 profile，即可登录已安装目录提供登录的 pi-ai 提供方，例如 `github-copilot` 或 `openai-codex`。它先安装启动环境的代理策略，只挂载 LLM 注册表、本地凭据存储、授权 seam 和 pi-ai 适配器，再以该流程的首选方式（提供 OAuth 时即为 OAuth）开始该提供方的授权流程。流程通知打印到 stdout，并附上需要打开的页面和需要输入的代码。流程提问在终端中进行，`secret` 回答不回显；stdin 不是交互式终端时，提问会被拒绝，本次尝试随之取消。`--enterprise-domain <domain>` 回答 GitHub Copilot 的企业域名提问，且只被 `login github-copilot` 接受；不提供时会询问该问题，空回答即选择 github.com。Ctrl+C 撤回本次尝试。成功时打印记录地址 `llm-pi-ai/<provider>` 并以 0 退出；取消或失败的尝试不存储任何内容，并以 1 退出。
+
+`dsh auth status <provider>` 报告该记录保存的是登录授权、API 密钥还是为空；它从不打印其值，也不刷新它。`dsh auth logout <provider>` 删除该记录。每个操作都会拒绝不提供登录的提供方 id，并列出提供登录的 id。记录位于 `$DSH_HOME/.credentials.yaml`，受[本地凭据存储](../../../packages/credentials/credentials-local/README.zh.md)的仅所有者权限和跨进程写锁保护，每个 profile 的 pi-ai 适配器都从这里读取并刷新它。仅所有者权限只能排除其他 OS 用户，无法排除以同一用户运行的工具。登录后添加提供方的步骤见[模型指南](../../../docs/user/guide/providers.zh.md#sign-in-to-github-copilot)。
 
 ## 插件管理
 
