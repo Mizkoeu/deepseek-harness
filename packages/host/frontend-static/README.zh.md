@@ -103,7 +103,7 @@ kind: "package-reference"
 
 这些限制说明某个资产类别何时尚未被覆盖。它们是当前包约束，不是任务积压。
 
-- **初始 MIME 表很精简**：它覆盖 Vite 输出的资产集合及实际交付的 PWA manifest；其他扩展名在相应资产类别发布前都会回退到 `application/octet-stream`。
+- **初始 MIME 表很精简**：它覆盖 Vite 输出的资产集合、实际交付的 PWA manifest 及 PNG 主屏幕图标；其他扩展名在相应资产类别发布前都会回退到 `application/octet-stream`。
 - **Pathname 路由是显式声明**——当前客户端从根目录或配置的 index 路径进入，没有 History API pathname 路由。新增一条需要显式服务器规则与真实组合覆盖，而不是对每次未命中做宽泛回退。
 
 <a id="dev-note"></a>
