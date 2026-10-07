@@ -977,6 +977,24 @@ describe('uncataloged catalog models', () => {
     expect({ ...astra, id: sibling?.id, name: sibling?.name }).toEqual(sibling)
   })
 
+  it.each([
+    { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol', cloneOf: 'gpt-5.6-sol' },
+    { id: 'claude-opus-5.5', name: 'Claude Opus 5.5', cloneOf: 'claude-opus-5' },
+    { id: 'claude-sonnet-5.5', name: 'Claude Sonnet 5.5', cloneOf: 'claude-sonnet-5' },
+  ])('clones $id from $cloneOf on the github-copilot route', ({ id, name, cloneOf }) => {
+    const models = catalogModels('github-copilot')
+    const clone = models.get(id)
+    const sibling = models.get(cloneOf)
+
+    expect(clone).toBeDefined()
+    expect(sibling).toBeDefined()
+    expect(clone?.name).toBe(name)
+    expect(clone?.provider).toBe('github-copilot')
+    // Every field but id and name is the sibling's, so the clone tracks the
+    // sibling's protocol, headers, and reasoning map without restating them.
+    expect({ ...clone, id: sibling?.id, name: sibling?.name }).toEqual(sibling)
+  })
+
   it('adds no uncataloged model to an unrelated catalog route', () => {
     expect(catalogModels('openai').has('gpt-6-astra')).toBe(false)
   })
