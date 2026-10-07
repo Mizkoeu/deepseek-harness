@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-08-19-web-app-icon-set.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-19-web-app-icon-set.md
+/agent-note-web-app-home-screen-icon-set:
+  en: 29abdc6650e7378a
+  zh: c7881a277657d7c3
+/agent-note-web-app-home-screen-icon-set/problem:
+  en: 54240b8144057c6f
+  zh: 146d84304d047bfe
+/agent-note-web-app-home-screen-icon-set/decision:
+  en: 1985964368d23dab
+  zh: 4a6249124026696e
+/agent-note-web-app-home-screen-icon-set/alternatives-considered:
+  en: 5532984efe24f5d8
+  zh: dd7a7e35c9eb5d47
+/agent-note-web-app-home-screen-icon-set/consequences:
+  en: a1629552ff823a5c
+  zh: ea07a385c477ce37
+/agent-note-web-app-home-screen-icon-set/testing:
+  en: 5ceac312d82aa388
+  zh: 606a3e4484366c23
