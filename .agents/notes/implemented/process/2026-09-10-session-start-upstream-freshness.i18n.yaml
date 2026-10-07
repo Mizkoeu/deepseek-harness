@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-10-session-start-upstream-freshness.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-10-session-start-upstream-freshness.md
-2026-09-10-session-start-upstream-freshness.md: e1706a3e2eb3495c6e1bf69e960186f968d74f88
-2026-09-10-session-start-upstream-freshness.zh.md: e0a81f2ccf5b2cfa7cfb86c06e231ef19a58b428
+/agent-note-session-start-upstream-freshness-check:
+  en: 048ee4882073ee63
+  zh: d1a7518dc0afc8bd
+/agent-note-session-start-upstream-freshness-check/problem:
+  en: e972f257742c7fa8
+  zh: a4c3e02292fdb95f
+/agent-note-session-start-upstream-freshness-check/decision:
+  en: 2c7c94d1b68f5dfe
+  zh: 4c8e6b7802dfadb2
+/agent-note-session-start-upstream-freshness-check/decision/check-state-is-per-clone-and-separate-from-integration:
+  en: 86cf9bdcf41a91c7
+  zh: 8a3db5d97570d29e
+/agent-note-session-start-upstream-freshness-check/alternatives-considered:
+  en: 67f32d6f514ea7da
+  zh: f429f44e3380ebe2
+/agent-note-session-start-upstream-freshness-check/consequences:
+  en: 9118c6cd3a47a78c
+  zh: 09c24d5850840395
+/agent-note-session-start-upstream-freshness-check/testing:
+  en: 029b08baf657a6a6
+  zh: 58824152014792c8

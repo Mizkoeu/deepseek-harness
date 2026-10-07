@@ -4,9 +4,7 @@ DeepSeek Harness is an all-plugin Cordis agent harness. Read [docs/architecture.
 
 ## Custom checkout
 
-This checkout carries local customizations on the `oh-mike-dsh` integration branch. **Before changing, committing, or integrating any customization, load the [dsh-mike-branch-workflow](.agents/skills/dsh-mike-branch-workflow/SKILL.md) skill**: branch from `oh-mike-dsh`, keep each feature separate, merge back with `--no-ff`, and never modify upstream `master`. Rationale and trade-offs: [personal integration branch](.agents/notes/implemented/process/2026-09-09-personal-integration-branch.md).
-
-At custom-session start, run the read-only freshness helper (`node .github/mike-upstream-sync/freshness-run.mjs`, or `--now` to force). It queries the fixed public upstream only when the last successful check is missing, invalid, or at least 7 days old, tracks that check separately from upstream integration, and never merges, pushes, or mutates a PR. The [dsh-mike-branch-workflow](.agents/skills/dsh-mike-branch-workflow/SKILL.md) skill owns the procedure.
+This checkout carries local customizations on the `oh-mike-dsh` integration branch. **Before changing, committing, or integrating any customization, load the [dsh-mike-branch-workflow](.agents/skills/dsh-mike-branch-workflow/SKILL.md) skill** ([rationale](.agents/notes/implemented/process/2026-09-09-personal-integration-branch.md)). At custom-session start, run the read-only freshness helper `node .github/mike-upstream-sync/freshness-run.mjs` (`--now` forces a query); the skill owns the procedure.
 
 ## Pre-stable APIs and released Session data
 

@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-09-personal-integration-branch.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-09-09-personal-integration-branch.md
-2026-09-09-personal-integration-branch.md: 0e5f3cc8a24cb6432011c02fab2319bb8667ce27
-2026-09-09-personal-integration-branch.zh.md: 7ec638be22b2d294e9ba95a3a3b5bae01fff3c39
+/agent-note-personal-integration-branch-for-local-customizations:
+  en: 27df5cac6f5625c0
+  zh: 0d761ac5f227d71b
+/agent-note-personal-integration-branch-for-local-customizations/problem:
+  en: 5f80f6a9dd5fcc6b
+  zh: 03d9cea3c128ba67
+/agent-note-personal-integration-branch-for-local-customizations/decision:
+  en: 8337711c9ab51c42
+  zh: 132e0b33fef3bc19
+/agent-note-personal-integration-branch-for-local-customizations/alternatives-considered:
+  en: 7c2c848d770ea924
+  zh: 01797324a9159b42
+/agent-note-personal-integration-branch-for-local-customizations/consequences:
+  en: 3a8e8d4ae883bc98
+  zh: a6177c59ede78311
