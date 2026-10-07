@@ -331,3 +331,68 @@ export async function openSettings(page: Page, locale: 'en' | 'zh'): Promise<voi
     await page.getByRole('button', { name: label, exact: true }).click()
   }
 }
+
+/** Portrait phone viewport of the mobile layout cases, in CSS px. */
+export const PHONE_VIEWPORT = { width: 390, height: 844 } as const
+
+/**
+ * Resize to {@link PHONE_VIEWPORT} and wait until the phone frame gives the
+ * conversation column the full width.
+ * @param page - page with the mounted AppFrame.
+ */
+export async function enterPhoneViewport(page: Page): Promise<void> {
+  await page.setViewportSize(PHONE_VIEWPORT)
+  const center = page.locator('[data-sidebar-overlay] > [class*="centerCol"]')
+  await expect.poll(async () => Math.round((await center.boundingBox())?.width ?? 0), { timeout: 10_000 })
+    .toBe(PHONE_VIEWPORT.width)
+}
+
+/** Horizontal containment of a decision card at the current viewport. */
+export interface CardContainment {
+  /** The card's border box lies within the viewport width. */
+  cardInside: boolean
+  /** Every visible button lies within the card's border box horizontally. */
+  buttonsInside: boolean
+  /** The last button row ends above the viewport bottom. */
+  actionsOnScreen: boolean
+  /** The document scrolls horizontally. */
+  pageOverflow: boolean
+}
+
+/**
+ * Measure whether a card and its buttons stay inside the viewport width.
+ * @param card - the card element (its own box bounds the buttons).
+ * @returns containment facts for the card and its visible buttons.
+ */
+export async function measureCardContainment(card: Locator): Promise<CardContainment> {
+  return card.evaluate((root) => {
+    const box = root.getBoundingClientRect()
+    const buttons = [...root.querySelectorAll<HTMLElement>('button')]
+      .map(button => button.getBoundingClientRect())
+      .filter(rect => rect.width > 0 && rect.height > 0)
+    return {
+      cardInside: box.left >= 0 && box.right <= window.innerWidth,
+      buttonsInside: buttons.length > 0 && buttons.every(rect => rect.left >= box.left - 0.5 && rect.right <= box.right + 0.5),
+      actionsOnScreen: buttons.length > 0 && Math.max(...buttons.map(rect => rect.bottom)) <= window.innerHeight,
+      pageOverflow: document.documentElement.scrollWidth > window.innerWidth,
+    }
+  })
+}
+
+/**
+ * Render card containment as golden lines.
+ * @param title - golden heading.
+ * @param facts - measured containment.
+ * @returns the golden text without its trailing newline.
+ */
+export function phoneContainmentGolden(title: string, facts: CardContainment): string {
+  return [
+    `# ${title}`,
+    '',
+    `- Viewport: ${String(PHONE_VIEWPORT.width)} x ${String(PHONE_VIEWPORT.height)}`,
+    `- Card inside the viewport: ${String(facts.cardInside)}`,
+    `- Buttons inside the card: ${String(facts.buttonsInside)}`,
+    `- Actions above the viewport bottom: ${String(facts.actionsOnScreen)}`,
+    `- Horizontal page overflow: ${String(facts.pageOverflow)}`,
+  ].join('\n')
+}

@@ -33,6 +33,7 @@
     "tests/diff-context.e2e.ts",
     "tests/code-card-layout.e2e.ts",
     "tests/markdown-mermaid-math.e2e.ts",
+    "tests/phone-shell.e2e.ts",
     "tests/code-language.snapshot.ts",
     "tests/scaffold.ts",
     "tests/connection-recovery.e2e.ts",

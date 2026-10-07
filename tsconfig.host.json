@@ -20,6 +20,7 @@
     "apps/web/tests/diff-context.e2e.ts",
     "apps/web/tests/code-card-layout.e2e.ts",
     "apps/web/tests/markdown-mermaid-math.e2e.ts",
+    "apps/web/tests/phone-shell.e2e.ts",
     "apps/web/tests/code-language.snapshot.ts",
     "apps/web/tests/scaffold.ts",
     "apps/web/tests/voice-input.e2e.ts",

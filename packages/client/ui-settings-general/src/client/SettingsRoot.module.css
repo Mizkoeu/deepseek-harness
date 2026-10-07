@@ -242,6 +242,65 @@
   white-space: nowrap;
 }
 
+/* Phone browser viewport: the panel fills the screen inside the safe area,
+   and the navigation becomes one horizontally scrolling row under the title
+   so the options column keeps the full width. The header (feature actions +
+   close) moves to the title row's trailing end. Desktop windows keep the
+   bounded panel and its caption clearances at every width. */
+@media (max-width: 559px) {
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .panel {
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-radius: 0;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .nav {
+    width: auto;
+    gap: 10px;
+    padding: 14px 0 0;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .navTitle {
+    padding: 0 20px;
+    line-height: 36px;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .navList {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 12px 8px;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+    scrollbar-width: none;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .navCell {
+    flex: none;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .header {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 14px);
+    right: calc(env(safe-area-inset-right) + 12px);
+    height: auto;
+    padding: 0;
+    align-items: center;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .close {
+    width: 36px;
+    height: 36px;
+  }
+
+  :global(html:not([data-windows-titlebar]):not([data-platform='darwin'])) .options {
+    padding: 16px 16px 24px;
+  }
+}
+
 /* No app-region rule here: the overlay portals beside #root (SettingsRoot), so
    ui-web base.css's `body > :not(#root)` subtraction covers it wherever it
    overlaps a chrome row's drag — including above every column, which an in-root

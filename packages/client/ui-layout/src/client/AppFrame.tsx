@@ -13,14 +13,23 @@
  * shown/track/fullscreen through `ctx.layout`; fullscreen keeps the reported
  * track but hides the outer resize handle. Everything arrives through the framework
  * shares — zero cordis or framework imports, zero self-made hooks.
+ *
+ * In a browser document below SIDEBAR_OVERLAY_BREAKPOINT the sidebar leaves the grid: closed, its
+ * track is zero and the shell.leading seat carries the reopen controls; open,
+ * the same mounted column overlays the full-width conversation above a scrim
+ * that closes it, as does navigating to another Session or main panel.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { CENTER_MIN, clampWidth, computeColumns, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT } from './columns.ts'
-import { DocumentTitle } from './DocumentTitle.tsx'
+import {
+  CENTER_MIN, clampWidth, computeColumns, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN,
+  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
+  SIDEBAR_OVERLAY_BREAKPOINT, SIDEBAR_OVERLAY_GUTTER,
+} from './columns.ts'
+import { DocumentTitle, mainViewSessionId } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -40,6 +49,21 @@ function CenterColumn(props: { children?: ReactNode }) {
 function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'usePanelInfo'> & PropsRenderSlots<'main'>) {
   const panelId = usePanelInfo(info => info.activePanelId)
   return renderSlot('main', {}, { entryKey: panelId ?? 'conversation' })
+}
+
+/**
+ * Report navigation while the overlay sidebar is open: a change of the
+ * main-view Session or the active main panel calls `onNavigate`. Mounted only
+ * while the overlay is open, so the frame itself never subscribes to either.
+ */
+function OverlayNavigation({ useSessions, usePanelInfo, onNavigate }: Pick<PropsRuntime<'root'>, 'useSessions' | 'usePanelInfo'> & { onNavigate: () => void }) {
+  const panelId = usePanelInfo(info => info.activePanelId)
+  const sessionId = useSessions(mainViewSessionId)
+  const opened = useRef({ panelId, sessionId })
+  useEffect(() => {
+    if (opened.current.panelId !== panelId || opened.current.sessionId !== sessionId) onNavigate()
+  }, [panelId, sessionId, onNavigate])
+  return null
 }
 
 /**
@@ -158,20 +182,30 @@ export function AppFrame({
   }, [actions])
 
   const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
+  // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or
+  // the Windows caption row; neither platform keeps an icon rail.
+  const darwin = document.documentElement.dataset.platform === 'darwin'
+  const windowsTitlebar = document.documentElement.hasAttribute('data-windows-titlebar')
+  // Phone browser frames keep the conversation at full width: the sidebar
+  // takes no track in either state and opens as an overlay instead. Desktop
+  // windows keep their own chrome layouts at every width.
+  const overlay = viewport < SIDEBAR_OVERLAY_BREAKPOINT && !darwin && !windowsTitlebar
   const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
   const sidebarPreference = sidebarCollapsed
     ? 0
     : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
+  const trackPreference = overlay ? 0 : sidebarPreference
   const rightbarPreference = layoutInfo.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
-  // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or
-  // the Windows caption row; neither platform keeps an icon rail.
-  const darwin = document.documentElement.dataset.platform === 'darwin'
-  const collapsedWidth = darwin
-    || document.documentElement.hasAttribute('data-windows-titlebar') ? 0 : SIDEBAR_COLLAPSED
+  // The phone overlay keeps no rail either; its reopen controls also take the seat.
+  const collapsedWidth = darwin || windowsTitlebar || overlay ? 0 : SIDEBAR_COLLAPSED
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
-  const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference, collapsedWidth)
-  const cols = computeColumns(viewport, sidebarPreference, layoutInfo.rightbarTrack ? rightbarPreference : 0, collapsedWidth)
+  const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : trackPreference, rightbarPreference, collapsedWidth)
+  const cols = computeColumns(viewport, trackPreference, layoutInfo.rightbarTrack ? rightbarPreference : 0, collapsedWidth)
+  // The open overlay leaves a strip of conversation uncovered as its close target.
+  const sidebarWidth = overlay && !sidebarCollapsed
+    ? Math.min(clampWidth(sidebarPreference, SIDEBAR_MIN, SIDEBAR_MAX), viewport - SIDEBAR_OVERLAY_GUTTER)
+    : cols.sidebar
   const colsRef = useRef(cols)
   colsRef.current = cols
   const rightbarWidth = useRef(normal.rightbar)
@@ -241,31 +275,32 @@ export function AppFrame({
   const rightbarMax = cols.rightbar === 0 ? 0 : clampWidth(rightbarPreference, RIGHTBAR_MIN, viewport * RIGHTBAR_MAX_RATIO)
   const sidebar = useMemo(() => renderSlot('sidebar', {
     collapsed: sidebarCollapsed,
-    width: cols.sidebar,
-  }), [renderSlot, sidebarCollapsed, cols.sidebar])
+    width: sidebarWidth,
+  }), [renderSlot, sidebarCollapsed, sidebarWidth])
+  const dismissOverlay = useCallback(() => { actions.dismissSidebarOverlay() }, [actions])
   const main = useMemo(() => (
     <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
   ), [usePanelInfo, renderSlot])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
-  // Window-chrome seat over the main panels' top-left corner: only a fully
-  // hidden sidebar column on macOS desktop leaves window chrome without a
-  // home — the Windows zero-width collapse keeps its controls in the caption
-  // row (ui-sidebar). AppFrame.module.css publishes the matching
+  // Window-chrome seat over the main panels' top-left corner: a fully hidden
+  // sidebar column on macOS desktop or on a phone frame leaves the reopen
+  // controls without a home — the Windows zero-width collapse keeps them in
+  // the caption row (ui-sidebar). AppFrame.module.css publishes the matching
   // --dsh-frame-leading-clearance under the same collapsed condition.
   const leading = useMemo(() => renderSlot('shell.leading', {}), [renderSlot])
-  const leadingMounted = darwin && sidebarCollapsed
+  const leadingMounted = (darwin || overlay) && sidebarCollapsed
 
   return (
     <div
       ref={frameRef}
       className={css.frame}
       style={{
-        ...(document.documentElement.hasAttribute('data-windows-titlebar')
-          ? { '--dsh-windows-sidebar-width': `${cols.sidebar}px` } : {}),
+        ...(windowsTitlebar ? { '--dsh-windows-sidebar-width': `${cols.sidebar}px` } : {}),
         gridTemplateColumns:
           `${cols.sidebar}px minmax(${cols.rightbar === 0 ? 0 : CENTER_MIN}px, 1fr) minmax(0px, ${rightbarMax}px)`,
       }}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
+      data-sidebar-overlay={overlay || undefined}
       data-rightbar-collapsed={cols.rightbar === 0 || undefined}
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
@@ -277,9 +312,15 @@ export function AppFrame({
         useSessions={useSessions}
         usePanelInfo={usePanelInfo}
       />
-      <div className={css.sidebarCol}>
+      <div className={css.sidebarCol} style={overlay && !sidebarCollapsed ? { width: sidebarWidth } : undefined}>
         {sidebar}
       </div>
+      {overlay && !sidebarCollapsed && (
+        <>
+          <div className={css.sidebarScrim} data-sidebar-scrim aria-hidden="true" onClick={dismissOverlay} />
+          <OverlayNavigation useSessions={useSessions} usePanelInfo={usePanelInfo} onNavigate={dismissOverlay} />
+        </>
+      )}
       <>
         <CenterColumn>{main}</CenterColumn>
         <RightbarColumn>
@@ -297,8 +338,8 @@ export function AppFrame({
           {leading}
         </div>
       )}
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {/* The collapsed rail is fixed-width and the overlay is not a track: no resize handle for either. */}
+      {!sidebarCollapsed && !overlay && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
         <DragHandle side="rightbar" left={viewport - normal.rightbar} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
       )}

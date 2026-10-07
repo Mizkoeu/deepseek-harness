@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-08-15-phone-width-web-controls-remain-reachable.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-15-phone-width-web-controls-remain-reachable.md
+/agent-note-phone-width-web-controls-remain-reachable:
+  en: 68815dc05b5cd432
+  zh: 103dcb680d5ff130
+/agent-note-phone-width-web-controls-remain-reachable/problem:
+  en: 7898ce77fbcdb87e
+  zh: bf275a042aa66548
+/agent-note-phone-width-web-controls-remain-reachable/decision:
+  en: b04a75084dcb59c1
+  zh: bfcb9780769cebed
+/agent-note-phone-width-web-controls-remain-reachable/alternatives-considered:
+  en: 14c91181bf28ac1d
+  zh: 450ad3c389ab8f9b
+/agent-note-phone-width-web-controls-remain-reachable/consequences:
+  en: 7925caca122be821
+  zh: 5188a7450a4d28b5

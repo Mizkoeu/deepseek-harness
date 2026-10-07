@@ -20,7 +20,9 @@ import {
   compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import {
+  connectFreshWorkspace, enterPhoneViewport, measureCardContainment, newEnglishPage, phoneContainmentGolden, saveFailureShot,
+} from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/plan-review', import.meta.url))
 const FIXTURE = join(SNAPSHOT_DIR, 'session.v3.jsonl')
@@ -31,6 +33,8 @@ const SIDEBAR_EXPECTED = join(SNAPSHOT_DIR, 'sidebar.expected.md')
 const PREVIEW_EXPECTED = join(SNAPSHOT_DIR, 'preview.expected.md')
 const APPROVED_EXPECTED = join(SNAPSHOT_DIR, 'approved.expected.md')
 const APPROVED_EXPANDED_EXPECTED = join(SNAPSHOT_DIR, 'approved-expanded.expected.md')
+// Portrait phone containment of the decision card.
+const MOBILE_EXPECTED = join(SNAPSHOT_DIR, 'mobile.expected.md')
 const TEMPORARY_EXPECTED = fileURLToPath(new URL('./expected/plan-review/temporary.expected.md', import.meta.url))
 const MODE = webSnapshotMode()
 
@@ -119,6 +123,16 @@ describe('web e2e: plan review takeover round trip', () => {
     }
     await page.locator('[data-sidebar-right-toggle]').click()
     await preview.waitFor({ state: 'hidden' })
+    if (MODE !== 'record') {
+      // Portrait phone, measured while the preview is closed (a narrow frame
+      // closes a normal right panel): the decision row wraps inside the card.
+      const original = page.viewportSize() ?? { width: 1680, height: 1000 }
+      await enterPhoneViewport(page)
+      const phone = await measureCardContainment(card.locator('section').first())
+      expect(phone).toEqual({ cardInside: true, buttonsInside: true, actionsOnScreen: true, pageOverflow: false })
+      await compareOrRefreshGolden(MOBILE_EXPECTED, phoneContainmentGolden('Plan review card on a portrait phone', phone), MODE)
+      await page.setViewportSize(original)
+    }
     await card.getByRole('button', { name: 'Open plan in sidebar' }).click()
     await preview.waitFor({ state: 'visible' })
 
@@ -259,7 +273,7 @@ describe('web e2e: plan review takeover round trip', () => {
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'review.expected.md', 'sidebar.expected.md', 'preview.expected.md',
-      'approved.expected.md', 'approved-expanded.expected.md',
+      'approved.expected.md', 'approved-expanded.expected.md', 'mobile.expected.md',
     ])
   })
 })

@@ -21,7 +21,8 @@ import {
   launchWebScaffold, recordFixture, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import {
-  connectFreshWorkspace, expandTurnProcesses, newEnglishPage, saveFailureShot,
+  connectFreshWorkspace, enterPhoneViewport, expandTurnProcesses, measureCardContainment, newEnglishPage,
+  phoneContainmentGolden, saveFailureShot,
 } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/question-composer', import.meta.url))
@@ -29,6 +30,8 @@ const FIXTURE = join(SNAPSHOT_DIR, 'session.v3.jsonl')
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
 const SIDEBAR_EXPECTED = join(SNAPSHOT_DIR, 'sidebar.expected.md')
 const COMPOSED_EXPECTED = join(SNAPSHOT_DIR, 'composed.expected.md')
+// Portrait phone containment of the waiting card.
+const MOBILE_EXPECTED = join(SNAPSHOT_DIR, 'mobile.expected.md')
 // Final golden: the answered transcript — the question resolved into its tool
 // round trip and the final reply, the state the composer goldens cannot see.
 const ANSWERED_EXPECTED = join(SNAPSHOT_DIR, 'answered.expected.md')
@@ -382,6 +385,23 @@ describe('web e2e: resident question composer round trip', () => {
         // Sub-pixel tolerance: every row's copy stays inside its border box.
         expect(squeeze.spill).toBeLessThan(0.6)
       }
+      // Portrait phone: Skip and Submit take their own footer row inside the
+      // card instead of running past its right edge.
+      await enterPhoneViewport(page)
+      const card = composer.locator('section').first()
+      const phone = await measureCardContainment(card)
+      expect(phone).toEqual({ cardInside: true, buttonsInside: true, actionsOnScreen: true, pageOverflow: false })
+      const footerRows = await card.evaluate((root) => {
+        const footer = root.querySelector('footer')
+        const pager = footer?.firstElementChild?.getBoundingClientRect()
+        const actions = footer?.lastElementChild?.getBoundingClientRect()
+        return pager !== undefined && actions !== undefined && actions.top >= pager.bottom
+      })
+      expect(footerRows).toBe(true)
+      await compareOrRefreshGolden(MOBILE_EXPECTED, [
+        phoneContainmentGolden('Question card on a portrait phone', phone),
+        `- Skip and Submit below the pager: ${String(footerRows)}`,
+      ].join('\n'), MODE)
       await page.setViewportSize(original)
     }
 
@@ -697,6 +717,7 @@ describe.skipIf(MODE === 'record')('web e2e: late-answered question transcript',
       'answered-expanded.expected.md',
       'late-answered.expected.md',
       'queued.expected.md',
+      'mobile.expected.md',
     ])
   })
 })

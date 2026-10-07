@@ -56,6 +56,7 @@
 }
 
 .sidebarCol {
+  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
@@ -63,6 +64,7 @@
 }
 
 .centerCol {
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -265,9 +267,66 @@
  * where it is. The occupant draws its own left border.
  */
 .rightbarCol {
+  grid-column: 3;
   position: relative;
   min-width: 0;
   overflow: visible;
+}
+
+/* Phone browser frame (data-sidebar-overlay: below SIDEBAR_OVERLAY_BREAKPOINT
+   outside the macOS and Windows desktop chrome): the sidebar track is zero in
+   both states, so the columns carry explicit grid lines above. Open, the
+   mounted column floats over the full-width conversation above a scrim that
+   closes it: above the leading seat and right panel, below frame overlays
+   (20) and the fullscreen right panel (40). */
+.frame[data-sidebar-overlay] .sidebarCol {
+  border-right: none;
+}
+
+.frame[data-sidebar-overlay]:not([data-sidebar-collapsed]) .sidebarCol {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 17;
+  box-shadow: var(--dsw-shadow-lv2);
+}
+
+/* The closed phone column has no width; hiding it also removes its rail
+   controls from focus order and the accessibility tree, since the leading
+   seat carries the reopen controls. Portalled surfaces the sidebar opens
+   (Settings, menus) live outside the column. */
+.frame[data-sidebar-overlay][data-sidebar-collapsed] .sidebarCol {
+  visibility: hidden;
+}
+
+.sidebarScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  background: var(--dsw-alias-bg-mask-1);
+}
+
+/* Closed phone sidebar: the reopen controls take the leading seat, level with
+   the conversation title row (centre y 25), and the frame publishes the band
+   they occupy (start inset + two controls + 8px gap + 8px of air). */
+.frame[data-sidebar-overlay] .leadingSeat {
+  top: 11px;
+  left: 12px;
+}
+
+.frame[data-sidebar-overlay][data-sidebar-collapsed] {
+  --dsh-frame-leading-clearance: 84px;
+}
+
+/* Touch screens get 36px controls (ui-sidebar HeaderLeadingControls). */
+@media (pointer: coarse) {
+  .frame[data-sidebar-overlay] .leadingSeat {
+    top: 7px;
+    left: 8px;
+  }
+
+  .frame[data-sidebar-overlay][data-sidebar-collapsed] {
+    --dsh-frame-leading-clearance: 96px;
+  }
 }
 
 .bottomRow {

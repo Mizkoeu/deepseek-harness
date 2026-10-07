@@ -31,6 +31,8 @@ Static application pages install `__DSH_BOOT_READY__` before the entry runs. The
 
 The shell base styles apply automatic CJK/Latin spacing to ordinary content in supporting browsers. Semantic code and terminal, diff, read, and search output containers retain literal source spacing and column alignment; browsers without `text-autospace` support ignore both declarations.
 
+The `apps/web` viewport opts into `viewport-fit=cover` and `interactive-widget=resizes-content`. The base styles pad `#root` by the `env(safe-area-inset-*)` values, so on notched phones the application stays clear of the status bar, rounded corners, and home indicator while the body background fills the insets; every inset is zero elsewhere. Android Chrome resizes the layout when the on-screen keyboard opens, keeping the composer above it.
+
 ### What boot looks like
 
 Boot runs in two stages: the module stage adopts the parser-loaded bootstrap batch, builds the module system from the Host-provided boot graph, and prefetches the `immediately` tier through the shared application-batch URL, which executes once. The plugin stage then activates every graph entry and waits for all of them before handing the marked boot DOM to the UI renderer, which hydrates it and switches to the complete UI.

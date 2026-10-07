@@ -366,6 +366,15 @@
   overflow-wrap: anywhere;
 }
 
+/* Touch screens: iOS Safari zooms the page into a focused field below 16px.
+   Both layers change together and keep the 24px line, so the 6-line cap
+   below still holds. */
+@media (pointer: coarse) {
+  .field > * {
+    font-size: 16px;
+  }
+}
+
 /* The height ruler, never painted. Growth stops at 6 lines: the card body is
    capped at 520px and still owes that budget to the title, the option rows and
    the footer actions, so a long answer scrolls in the textarea instead of
@@ -470,6 +479,31 @@
 
   .footerActions {
     flex-shrink: 0;
+  }
+}
+
+/* Phone width: the pager and feedback keep the first footer row, and Skip
+   and Submit share a full second row instead of overflowing the card. */
+@media (max-width: 559px) {
+  .footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 8px;
+    padding-bottom: 2px;
+  }
+
+  .feedback {
+    text-align: left;
+  }
+
+  .footerActions {
+    grid-column: 1 / -1;
+    flex-shrink: 1;
+  }
+
+  .footerActions > button {
+    flex: 1;
   }
 }
 

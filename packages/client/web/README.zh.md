@@ -31,6 +31,8 @@ kind: "package-library"
 
 外壳基础样式会在支持的浏览器中为普通内容自动添加中西文间距。语义化代码以及终端、diff、读取和搜索输出容器会保留源码中的原始间距和列对齐；不支持 `text-autospace` 的浏览器会忽略这两项声明。
 
+`apps/web` 的 viewport 声明 `viewport-fit=cover` 与 `interactive-widget=resizes-content`。基础样式以 `env(safe-area-inset-*)` 为 `#root` 设置内边距，因此在带刘海的手机上，应用会避开状态栏、圆角和主屏幕指示条，由 body 背景填充这些安全区域外的部分；其他环境下所有内边距均为零。Android Chrome 在屏幕键盘弹出时会缩小布局，使输入框保持在键盘上方。
+
 ### 启动过程是怎样的
 
 启动分两个阶段：模块阶段接纳 parser 已加载的 bootstrap 批次，从 Host 提供的启动图构建模块系统，并通过只执行一次的共享 application 批次 URL 预取 `immediately` 层级。插件阶段随后激活每个图 entry 并等待全部就绪，之后才把带标记的启动 DOM 交给 UI 渲染器，由它 hydrate 并切换到完整 UI。

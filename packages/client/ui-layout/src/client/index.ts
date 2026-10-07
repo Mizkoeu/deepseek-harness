@@ -64,6 +64,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      *
      * The occupant receives the frame's live column state (collapsed, width)
      * and is expected to render the compact control rail while collapsed.
+     * A zero collapsed width hides the column, and in a browser document
+     * below 560px an open sidebar overlays the conversation at the reported
+     * width.
      */
     'sidebar': { kind: 'single'; scope: 'root'; owner: SidebarOwnerProps }
     /**
@@ -105,9 +108,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'shell.overlay': { kind: 'list'; scope: 'root' }
     /**
      * Window-chrome seat at the frame's top-left, over every main panel.
-     * Mounted only while the sidebar column is fully hidden (macOS desktop
-     * collapse; other platforms keep the rail), so the occupant can assume the
-     * frame edge is the window edge and the macOS traffic lights sit before it.
+     * Mounted only while the sidebar column is fully hidden: the macOS
+     * desktop collapse, and the collapse of a browser-document frame
+     * narrower than 560px. Windows keeps its caption controls, and other
+     * frames keep the rail.
+     * The occupant can assume the frame edge is the window edge; on macOS
+     * the traffic lights sit before it.
      * OCCUPIED by ui-sidebar's reopen/New Session controls.
      *
      * While the seat is mounted the frame publishes
@@ -129,7 +135,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface SidebarOwnerProps {
   /** True when the sidebar is closed (the column renders the compact control rail). */
   collapsed: boolean
-  /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
+  /**
+   * Rendered width in px: SIDEBAR_COLLAPSED for the closed rail, 0 when the
+   * closed column is hidden, and the overlay width when a browser-document
+   * frame below 560px opens the sidebar over the conversation.
+   */
   width: number
 }
 

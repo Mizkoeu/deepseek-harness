@@ -133,6 +133,16 @@
   margin-right: 4px;
 }
 
+/* Touch screens: iOS Safari zooms the page into a focused editable below
+   16px, so the draft surface and its placeholder keep at least 16px there,
+   with the same 10px leading. */
+@media (pointer: coarse) {
+  .scroll {
+    font-size: max(16px, var(--dsh-content-font-size, 14px));
+    line-height: calc(max(16px, var(--dsh-content-font-size, 14px)) + 10px);
+  }
+}
+
 /* The card's corner arc still overlaps the scrollport's top (8px top
    pad reaches only y=8): start the thumb's travel below the arc so it never
    pokes outside the capsule. WebKit-path only; Firefox's thin bar has no
