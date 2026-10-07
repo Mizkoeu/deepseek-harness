@@ -8,6 +8,15 @@ body,
   margin: 0;
 }
 
+/* The apps/web viewport opts into viewport-fit=cover, so on notched phones
+   the document reaches under the status bar, rounded corners, and home
+   indicator. The mount keeps the application inside the safe area; the body
+   background fills the insets. Every inset is zero elsewhere. */
+#root {
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
 body {
   font-family: var(
     --dsw-font-family,

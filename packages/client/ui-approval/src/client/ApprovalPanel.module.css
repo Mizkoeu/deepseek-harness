@@ -65,3 +65,16 @@
   color: var(--dsw-alias-state-error-primary);
   border-color: transparent;
 }
+
+/* Phone width: the decision buttons share the row and wrap rather than
+   leaving the card under longer labels. */
+@media (max-width: 559px) {
+  .actionRow {
+    flex-wrap: wrap;
+    padding: 10px 12px 12px;
+  }
+
+  .actionRow > button {
+    flex: 1 1 120px;
+  }
+}
