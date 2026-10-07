@@ -12,8 +12,9 @@ import {
   WIDER_MODES,
   approveEscalation,
   escalationHintMarker,
-  normalizeEscalationArgs,
   sandboxDenialMarker,
+  sandboxPermissionsDescription,
+  validateEscalationArgs,
 } from '@deepseek-ai/dsh-sandbox'
 import type { EscalationApprover, EscalationOutcome } from '@deepseek-ai/dsh-sandbox'
 
@@ -29,27 +30,16 @@ describe('the strictly-wider ladder', () => {
   })
 })
 
-describe('normalizeEscalationArgs', () => {
-  it('a genuine widen returns the requested mode and its justification', () => {
-    expect(normalizeEscalationArgs('workspace-write', 'because the workspace needs it', 'read-only'))
-      .toEqual({ requestedMode: 'workspace-write', justification: 'because the workspace needs it' })
+describe('validateEscalationArgs', () => {
+  it('accepts neither field, or both with a non-empty justification', () => {
+    expect(() => { validateEscalationArgs(undefined, undefined) }).not.toThrow()
+    expect(() => { validateEscalationArgs('workspace-write', 'because the workspace needs it') }).not.toThrow()
   })
 
-  it('strips a fill that does not strictly widen the effective mode', () => {
-    // Same-mode (the strict-schema footgun), narrower, absent, null, and a
-    // missing effective mode all escalate nothing, so normalization yields no
-    // ask and the call runs at its own mode.
-    expect(normalizeEscalationArgs('workspace-write', 'filled reason', 'workspace-write')).toBeUndefined()
-    expect(normalizeEscalationArgs('workspace-write', '', 'danger-full-access')).toBeUndefined()
-    expect(normalizeEscalationArgs(undefined, undefined, 'read-only')).toBeUndefined()
-    expect(normalizeEscalationArgs(null, null, 'read-only')).toBeUndefined()
-    expect(normalizeEscalationArgs('workspace-write', 'reason', undefined)).toBeUndefined()
-  })
-
-  it('a genuine widen still requires a non-empty justification', () => {
-    expect(() => normalizeEscalationArgs('workspace-write', undefined, 'read-only')).toThrow(/requires a justification/)
-    expect(() => normalizeEscalationArgs('workspace-write', null, 'read-only')).toThrow(/requires a justification/)
-    expect(() => normalizeEscalationArgs('danger-full-access', '   ', 'workspace-write')).toThrow(/non-empty sentence/)
+  it('rejects one field without the other, and a blank justification', () => {
+    expect(() => { validateEscalationArgs('workspace-write', undefined) }).toThrow(/requires a justification/)
+    expect(() => { validateEscalationArgs(undefined, 'orphan reason') }).toThrow(/only valid together with sandbox_permissions/)
+    expect(() => { validateEscalationArgs('workspace-write', '   ') }).toThrow(/non-empty sentence/)
   })
 })
 
@@ -57,6 +47,11 @@ describe('the model-facing markers', () => {
   it('the denial marker names the mode', () => {
     expect(sandboxDenialMarker('read-only')).toBe('[sandbox: file access denied under read-only mode]')
     expect(sandboxDenialMarker('workspace-write')).toBe('[sandbox: file access denied under workspace-write mode]')
+  })
+
+  it('the sandbox_permissions description names the family subject', () => {
+    expect(sandboxPermissionsDescription('command')).toBe('The narrowest wider sandbox mode for a one-shot retry of the exact command the sandbox just denied; the retry asks the user for approval.')
+    expect(sandboxPermissionsDescription('operation')).toBe('The narrowest wider sandbox mode for a one-shot retry of the exact operation the sandbox just denied; the retry asks the user for approval.')
   })
 
   it('the hint marker names the family subject', () => {
@@ -90,14 +85,32 @@ describe('approveEscalation', () => {
     const granted = await approveEscalation(req(), ingredients({ approver: approver('allowed-once', r => seen.push(r as { reason?: string })) }))
     expect(granted).toBe('workspace-write')
     expect(seen[0]?.reason).toBe('escalate sandbox to workspace-write: the user asked to write in the workspace')
+    expect(seen[0]).toMatchObject({
+      displayReason: {
+        en: 'Allow this operation with workspace-write permissions: the user asked to write in the workspace',
+        zh: '允许本次操作使用 workspace-write 权限：the user asked to write in the workspace',
+      },
+    })
   })
 
-  it('a non-widening request fails closed with its own text and never asks', async () => {
+  it.each(ESCALATION_TARGETS)('repeating %s succeeds without asking for approval', async (mode) => {
+    const seen: unknown[] = []
+    const request = req({ requestedMode: mode, effectiveMode: mode })
+    await expect(approveEscalation(request, ingredients({ approver: approver('rejected', r => seen.push(r)) })))
+      .resolves.toBe(mode)
+    expect(seen).toEqual([])
+    await expect(approveEscalation(request, ingredients({ approver: undefined, agent: undefined })))
+      .resolves.toBe(mode)
+  })
+
+  it('a narrower or unsupported target fails closed without asking', async () => {
     const seen: unknown[] = []
     const spy = ingredients({ approver: approver('allowed-once', r => seen.push(r)) })
-    await expect(approveEscalation(req({ requestedMode: 'read-only' }), spy))
-      .rejects.toThrow(/not strictly wider than this call's current "read-only" mode/)
+    await expect(approveEscalation(req({ requestedMode: 'read-only', effectiveMode: 'workspace-write' }), spy))
+      .rejects.toThrow(/not strictly wider than this call's current "workspace-write" mode/)
     await expect(approveEscalation(req({ requestedMode: 'workspace-write', effectiveMode: 'danger-full-access' as never }), spy))
+      .rejects.toThrow(/not strictly wider/)
+    await expect(approveEscalation(req({ requestedMode: 'unknown-mode' }), spy))
       .rejects.toThrow(/not strictly wider/)
     expect(seen).toEqual([])
   })
@@ -109,7 +122,7 @@ describe('approveEscalation', () => {
 
   it('maps each non-grant outcome to its distinct verbatim text (subject in the rejection)', async () => {
     await expect(approveEscalation(req({ subject: 'operation' }), ingredients({ approver: approver('rejected') })))
-      .rejects.toThrow('the user rejected escalating this operation to "workspace-write"')
+      .rejects.toThrow('the user rejected escalating this operation to "workspace-write"; it stays denied, so stop and explain instead of working around it')
     await expect(approveEscalation(req(), ingredients({ approver: approver('cancelled') })))
       .rejects.toThrow('approval for escalating to "workspace-write" was cancelled')
     await expect(approveEscalation(req(), ingredients({ approver: approver('unavailable') })))

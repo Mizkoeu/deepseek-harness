@@ -1,40 +1,79 @@
-# dsh-client-ui-settings-plugins
+---
+description: "dsh Web 客户端的「内置插件」设置分区：设置导航项与供功能插件注册标签页的标签行。"
+kind: "package-reference"
+---
+
+# @deepseek-ai/dsh-client-ui-settings-plugins
 
 [English](README.md) | 中文
 
-**插件**设置分区及其**插件配置**标签页。该分区拥有标题与紧凑的标签栏；功能插件通过 `settings.plugins.tab` 贡献页面。本包自己的标签页为每个配置由用户拥有的 Host 插件展示一张可展开卡片。卡片展示插件名称及其管辖范围；就地展开后是绑定到该插件 settings 命名空间的手写控件，每个字段标注用户是否覆盖过它，并提供重置回部署组装值的入口。
+## 概述
 
-## 这里会出现什么
+使用**内置插件**设置分区查看本部署随附的插件。该分区只是一个壳：它拥有导航项和标签行，里面的每个标签页都由其他插件注册——只读清单注册了一个。配置内置插件在侧栏的插件页上进行，每个官方插件自己的伴生包把页面注册到那里。
 
-只有当某个命名空间既被存活的 Host 插件注册、又被服务给浏览器时，它的卡片才会渲染。未组装该插件的部署——或未向任何客户端服务该命名空间的部署——不会渲染空卡片或禁用卡片，而是什么都不渲染，因此“插件配置”标签页反映的是该部署实际运行的东西。
+## 目录
 
-第一批覆盖 shell 执行器（`bash`）、agent 循环的工具调用并行度（`agent-loop`）以及 DeepSeek 搜索提供方（`web-search-deepseek`）。
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
-## 扩展点
+-----
 
-本分区声明根级列表 slot `settings.plugins.tab`，其标签会成为有序标签页。某个标签页首次被选择后会保持挂载，因此本地草稿与只读快照在切换标签页时不会丢失。本包注册自己的 `configurable` 贡献，由它声明嵌套的 `settings.plugin.item` 列表 slot。带浏览器半侧的插件把自己的卡片注册进这个嵌套 slot 并拥有其控件；本包既不枚举命名空间，也不渲染未被交给它的表单。两层排序都遵循贡献的 `order`。
+<a id="use-this-package"></a>
+## 使用本包
 
-## 写入
+在设置里打开**内置插件**。[ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.zh.md) 把清单作为分区唯一的标签页贡献进来，直接显示为页面本身；注册第二个标签页后这一行就变成标签行。组合里没有任何标签页贡献的部署会显示分区的空提示。
 
-卡片暂存用户输入，只有用户保存时才写入。每个控件渲染的都是暂存文本，因此屏幕上所见即保存后所存；**放弃修改**丢弃这些草稿，持有未保存修改的卡片即使收起也会在标题上标明。重置暂存的是组装默认值而非立即写入；字段不接受的草稿会阻塞保存，而不是被丢弃。
+要贡献一个标签页，带 `id`、`order` 和本地化的 `label` 注册进 `settings.plugins.tab`；分区按序渲染条目，标签页在首次被选中时挂载。功能文案留在注册方自己的字典里。
 
-保存时，每个暂存字段都通过客户端 settings scope 写入，该 scope 用读取时的命名空间 revision 为每次写入设栅，因此已与文档脱节的表单会被拒绝，而不是覆盖并发变更。某个值是否被接受只有 Host 说了算——schema 表达不了的约束归它的校验器所有——因此卡片在写入后回读分节，报告没有落盘的保存，并保留这些草稿供用户修改。
+-----
 
-密钥也可能从别的表层写入——模型页寻址的是同一个引用——而那不改变任何 settings 分节，因此卡片会在转发来的 `credentials/updated` 事件报告它所关注的引用时重读。
+<a id="understand-the-implementation"></a>
+## 理解实现
 
-字段是否被覆盖，取决于它是否出现在原始用户层中，而非取决于它的值；重置会清除该字段，使其重新继承组装层。secret 角色的字段绝不搭乘响应，因此密钥控件初始为空、只报告是否已配置，并经由 credentials 领域而非 settings 分节写入；空草稿不写入任何东西，保留已存密钥。
+<details>
+<summary>实现细节——点击展开</summary>
 
+分区声明 `settings.plugins.tab`，一个根级 list slot，其标签成为有序的标签页；只有一个贡献时直接渲染为页面本身，标签页在首次被选中后保持挂载，搜索词和清单快照因此在切换间不丢失。分区的 `inject` 把 slot 账本投影成按序排列、标签随当前语言的行，在账本版本或语言修订变化前保持缓存。宿主半侧是一个空的 `apply`，只为让本包占一条 Loader 行，客户端模块系统据此送出浏览器半侧。
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## 进一步探索
+
+- [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.zh.md)——只读清单标签页。
+- [ui-settings](../ui-settings/README.zh.md)——声明 `settings.section` 的领域基座。
+- [ui-plugin-manager](../ui-plugin-manager/README.zh.md)——配置官方插件的插件页。
+- [ui-settings-shell](../ui-settings-shell/README.zh.md)、[ui-settings-agent-loop](../ui-settings-agent-loop/README.zh.md)、[ui-settings-subagent](../ui-settings-subagent/README.zh.md)、[ui-settings-web-search](../ui-settings-web-search/README.zh.md)——官方配置页，每个一个伴生包。
+
+-----
+
+<a id="model-experience"></a>
 ## 模型体验
 
-无。该分区渲染浏览器配置 UI；它写入的值只通过拥有这些值的插件到达模型，而这些效应各由其拥有方的包记录。
+无，本包是浏览器侧的设置界面，不注册任何模型面。
 
-#### KV Cache 影响
+#### KV 缓存影响
 
-无；该包既不组装也不发送提供方请求。
+无；本包既不组装也不发送提供方请求。
 
-## 已知限制与暂缓事项
+## 已知限制与延期工作
 
-- **只有宿主平面的插件会出现**——由 agent preset 挂载的插件把配置内联在该 preset 的 `agent.cordis.yml` 中，且根本无法注册 settings 命名空间（同一 preset 挂载第二个会话时会因重复注册而失败），因此本分区不会列出它。编辑那些值仍是 preset 编辑器的职责。
-- **暴露是 Host 的白名单，而非插件的声明**——不在 api-proxy 白名单中的命名空间，即便其拥有方已注册，也只会得到 `settings-not-exposed`，因此在本仓库之外分发的插件无法在不改动 `packages/host/apiproxy` 的前提下让自己的配置出现在这里。
-- **shell 卡片跟随被组装的执行器**——POSIX 与 PowerShell 两个执行器家族共用 `bash` 命名空间，因为一个宿主只组装其中之一，所以被服务的 schema 随平台不同（PowerShell 多出 `pwshPath`），尽管卡片在两者下编辑的都是同样两个字段；而两者都不组装的部署不会显示这张卡片。
-- **空态数的是已注册卡片，不是可见卡片**——命名空间未被本部署暴露的卡片什么都不渲染，但仍计入数量，因此一个都不暴露的部署看到的是空列表而非那行空态文案。该计数还只读取一次，因为渲染器会缓存根级 entry 的 inject face；之后注册的卡片不会让它变大。
+<a id="known-limitations-and-deferred-work"></a>
+
+- **分区没有自己的标签页**——在功能插件注册标签页之前它只显示空提示；壳自己填不满分区。
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>维护者工作上下文——点击展开</summary>
+
+无。
+
+</details>
