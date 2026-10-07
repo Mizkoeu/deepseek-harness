@@ -143,12 +143,13 @@ export function catalogProviderIds(): readonly string[] {
 
 /**
  * Models a provider's OAuth roster serves before a pi-ai release catalogs them,
- * keyed by route. GitHub Copilot's roster gains a new OpenAI generation ahead
- * of pi-ai's shipped data, and its multi-protocol route cannot describe a new
+ * keyed by route. GitHub Copilot's roster gains new model generations ahead of
+ * pi-ai's shipped data, and its multi-protocol route cannot describe a new
  * model from `settings.yaml` alone: a model needs the wire protocol and the
  * Copilot request headers that only a catalog entry carries. Each entry clones
  * the shipped sibling it matches — same protocol, headers, and reasoning map —
- * overriding only id and name. Drop an entry once a pi-ai bump ships the model
+ * overriding only id and name, so a clone must name a sibling of the same model
+ * family and wire protocol. Drop an entry once a pi-ai bump ships the model
  * natively; {@link withUncatalogedModels} then keeps the shipped descriptor.
  */
 const UNCATALOGED_MODELS: Readonly<Record<string, readonly {
@@ -158,6 +159,9 @@ const UNCATALOGED_MODELS: Readonly<Record<string, readonly {
 }[]>> = {
   'github-copilot': [
     { id: 'gpt-6-astra', name: 'GPT-6 Astra', cloneOf: 'gpt-5.6-sol' },
+    { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol', cloneOf: 'gpt-5.6-sol' },
+    { id: 'claude-opus-5.5', name: 'Claude Opus 5.5', cloneOf: 'claude-opus-5' },
+    { id: 'claude-sonnet-5.5', name: 'Claude Sonnet 5.5', cloneOf: 'claude-sonnet-5' },
   ],
 }
 
