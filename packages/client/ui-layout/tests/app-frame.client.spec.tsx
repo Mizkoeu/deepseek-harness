@@ -317,7 +317,7 @@ describe('AppFrame normal width concessions', () => {
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     expect(instance.getSnapshot().layoutInfo).toMatchObject({ rightbarShown: true, rightbar: 864 })
     act(() => { instance.actions.closeRightbar() })
-    resize(455)
+    resize(560)
     expect(tracks(frame)).toEqual([56, 0])
     resize(1920)
     expect(tracks(frame)).toEqual([420, 0])
@@ -373,6 +373,105 @@ describe('AppFrame normal width concessions', () => {
     act(() => { instance.actions.toggleSidebar() })
     expect(tracks(frame)[0]).toBe(280)
     expect(instance.getSnapshot().layoutInfo.sidebar).toBe(0)
+  })
+})
+
+describe('AppFrame phone sidebar overlay', () => {
+  function sidebarColumn(frame: HTMLElement): HTMLElement {
+    return frame.querySelector<HTMLElement>('[data-testid="sidebar-content"]')!.parentElement!
+  }
+
+  it('gives the closed sidebar no track and moves its reopen controls to the leading seat', () => {
+    frameWidth = 390
+    const { frame, sidebarOwner, getByTestId } = mountFrame()
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.dataset.sidebarOverlay).toBe('true')
+    expect(frame.dataset.sidebarCollapsed).toBe('true')
+    expect(sidebarOwner()).toEqual({ collapsed: true, width: 0 })
+    expect(getByTestId('sidebar-content')).toBeTruthy()
+    expect(getByTestId('shell.leading-content')).toBeTruthy()
+    expect(frame.querySelector('[data-sidebar-scrim]')).toBeNull()
+  })
+
+  it('opens over the full-width conversation above a scrim that closes it', () => {
+    frameWidth = 390
+    const { frame, instance, sidebarOwner, queryByTestId } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([0, 0])
+    expect(frame.dataset.sidebarCollapsed).toBeUndefined()
+    expect(sidebarOwner()).toEqual({ collapsed: false, width: 280 })
+    expect(sidebarColumn(frame).style.width).toBe('280px')
+    expect(queryByTestId('shell.leading-content')).toBeNull()
+    expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
+    act(() => { frame.querySelector<HTMLElement>('[data-sidebar-scrim]')!.click() })
+    expect(frame.dataset.sidebarCollapsed).toBe('true')
+    expect(sidebarColumn(frame).style.width).toBe('')
+    expect(queryByTestId('shell.leading-content')).toBeTruthy()
+  })
+
+  it('leaves the close strip uncovered when the preferred width does not fit', () => {
+    frameWidth = 320
+    const { instance, sidebarOwner } = mountFrame()
+    act(() => { instance.actions.setSidebar(420); instance.actions.toggleSidebar() })
+    expect(sidebarOwner()).toEqual({ collapsed: false, width: 264 })
+  })
+
+  it('closes after navigation to another main panel or Session', () => {
+    frameWidth = 390
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    rerenderFrame()
+    expect(frame.dataset.sidebarCollapsed).toBeUndefined()
+    act(() => { instance.actions.selectPanel('panel-a' as MainPanelId) })
+    expect(frame.dataset.sidebarCollapsed).toBe('true')
+    act(() => { instance.actions.toggleSidebar() })
+    selectedSession = 's-other' as SessionId
+    rerenderFrame()
+    expect(frame.dataset.sidebarCollapsed).toBe('true')
+    act(() => { instance.actions.toggleSidebar() })
+    selectedSession = undefined
+    rerenderFrame()
+    expect(frame.dataset.sidebarCollapsed).toBe('true')
+  })
+
+  it('returns to the rail and resizable track at the breakpoint', () => {
+    frameWidth = 390
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    resize(560)
+    expect(frame.dataset.sidebarOverlay).toBeUndefined()
+    expect(tracks(frame)).toEqual([280, 0])
+    expect(sidebarColumn(frame).style.width).toBe('')
+    expect(frame.querySelector('[data-sidebar-scrim]')).toBeNull()
+    expect(handleFor(frame, 'sidebar').style.left).toBe('280px')
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([56, 0])
+  })
+
+  it('keeps the Windows caption layout at phone width', () => {
+    document.documentElement.setAttribute('data-windows-titlebar', '')
+    try {
+      frameWidth = 390
+      const { frame, instance, queryByTestId } = mountFrame()
+      expect(frame.dataset.sidebarOverlay).toBeUndefined()
+      expect(tracks(frame)).toEqual([0, 0])
+      expect(queryByTestId('shell.leading-content')).toBeNull()
+      act(() => { instance.actions.toggleSidebar() })
+      expect(tracks(frame)).toEqual([280, 0])
+    } finally {
+      document.documentElement.removeAttribute('data-windows-titlebar')
+    }
+  })
+
+  it('keeps the macOS desktop layout at phone width', () => {
+    document.documentElement.dataset.platform = 'darwin'
+    frameWidth = 390
+    const { frame, instance, queryByTestId } = mountFrame()
+    expect(frame.dataset.sidebarOverlay).toBeUndefined()
+    expect(queryByTestId('shell.leading-content')).toBeTruthy()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([280, 0])
+    expect(frame.querySelector('[data-sidebar-scrim]')).toBeNull()
   })
 })
 

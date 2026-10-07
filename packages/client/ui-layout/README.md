@@ -33,6 +33,11 @@ Global panels occupy the root-scoped `main` keyed slot; `conversation` is the re
 
 The single root-scoped `shell.bottom` slot spans the full width below the three columns. Its occupant controls its own height and visibility; the columns shrink by that height, and empty content reserves no space. Main-panel navigation preserves the bottom component. Column resize handles stop above it, while `shell.overlay` covers the whole frame. The default composition leaves this slot empty.
 
+<a id="phone-frames"></a>
+### Phone frames
+
+In a browser document below 560px the sidebar leaves the grid so the conversation keeps the full frame width; the macOS and Windows desktop layouts apply at every width. Closed, it takes no track and is hidden, so its rail controls leave the focus order; the frame mounts the [`shell.leading` seat](#window-chrome-seat) with the reopen and New Session controls at the top-left (36px on touch screens) and publishes `--dsh-frame-leading-clearance`. Open, the same mounted sidebar overlays the conversation at its preferred width and leaves at least 56px uncovered; tapping the scrim over that strip closes it, as does selecting another Session or main panel. These widths have no sidebar resize handle. The right panel follows its own narrow rule and opens fullscreen ([ui-sidebar-right](../ui-sidebar-right/README.md)).
+
 <a id="window-chrome-seat"></a>
 ### Window-chrome seat
 
@@ -92,7 +97,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define the current layout behavior. They are current package constraints, not a general window-manager comparison or a task backlog.
 
 - **Panel geometry is transient** — reload restores the sidebar default and the right panel hidden; each dragged width is one frame-wide preference, not a per-Session fact.
-- **Extremely narrow windows** — after the right panel closes, the center may still fall below 400px; the left 56px rail remains.
+- **Extremely narrow windows** — after the right panel closes, the center may still fall below 400px; from 560px up the left 56px rail remains.
 - **Track and panel travel on one shared curve only while animating** — during a discrete open/close the frame sets `data-animating` and its track transition and the occupant's slide read the same duration and easing variables; an occupant that used its own would detach the panel's edge from the conversation's while squeezing. Drags and instant presentation switches run transition-free, so the curve does not cover them.
 - **No scroll anchoring during squeeze reflow** — layout changes may move the reader's viewport.
 

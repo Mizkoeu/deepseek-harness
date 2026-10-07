@@ -27,3 +27,12 @@
 .iconButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+
+/* Touch screens (the phone frame mounts this seat): 36px tap targets; the
+   frame's touch placement and clearance account for the larger boxes. */
+@media (pointer: coarse) {
+  .iconButton {
+    width: 36px;
+    height: 36px;
+  }
+}

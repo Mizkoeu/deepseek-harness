@@ -21,6 +21,10 @@ export const SIDEBAR_COLLAPSED = 56
  * LG breakpoint); a manual toggle below it re-expands over the squeezed center
  * (stores.ts narrowExpanded). */
 export const SIDEBAR_AUTO_COLLAPSE = 1024
+/** Frame width below which the sidebar leaves the grid: closed it hides, open it overlays the conversation. */
+export const SIDEBAR_OVERLAY_BREAKPOINT = 560
+/** Conversation strip left uncovered beside the open overlay sidebar; tapping it closes the sidebar. */
+export const SIDEBAR_OVERLAY_GUTTER = 56
 /** Right column drag clamp floor. */
 export const RIGHTBAR_MIN = 300
 /** Maximum normal right panel width as a fraction of the frame. */

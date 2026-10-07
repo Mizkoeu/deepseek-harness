@@ -60,6 +60,7 @@ type LayoutActions = {
   retainMainPanels: (draft: LayoutState, panelIds: readonly string[]) => void
   setSidebar: (draft: LayoutState, px: number) => void
   toggleSidebar: (draft: LayoutState) => void
+  dismissSidebarOverlay: (draft: LayoutState) => void
   setViewportWidth: (draft: LayoutState, width: number) => void
   setRightbar: (draft: LayoutState, px: number) => void
   openRightbar: (draft: LayoutState, track: boolean, fullscreen: boolean) => void
@@ -72,7 +73,8 @@ type LayoutActions = {
  * default. The right panel initializes at 45% of the frame on first opening
  * and keeps that px preference across resizes and close. Drag writes clamp to
  * the current frame's range. Narrow sidebar toggles change only the expansion
- * override; opening the right panel clears that override.
+ * override; opening the right panel or dismissing the phone overlay clears
+ * that override.
  * @returns the store handle (spec + type + identity + factory in one).
  */
 export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutActions>  {
@@ -109,6 +111,12 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         d.layoutInfo.rightbarInstant = false
         if (d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.layoutInfo.narrowExpanded = !d.layoutInfo.narrowExpanded
         else d.layoutInfo.sidebar = d.layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : 0
+      },
+      // Idempotent close for the overlay sidebar below SIDEBAR_OVERLAY_BREAKPOINT,
+      // which is always inside the narrow range: repeated navigation reports
+      // cannot reopen it the way a toggle would.
+      dismissSidebarOverlay: (d) => {
+        d.layoutInfo.narrowExpanded = false
       },
       // Crossing the breakpoint in either direction drops the override: the
       // narrow default is auto-collapsed, the wide state is the preference.
