@@ -74,11 +74,11 @@ export class FsSandboxController {
   /**
    * The policy to stamp onto this mutation: an approved escalation grant (a
    * strictly wider retry resolved through `ctx.approval` before anything
-   * executes), else the session's standing mode. Arguments that
+   * executes), else the Session's standing mode. Arguments that
    * `normalizeEscalationArgs` reduces to no escalation (absent, strict-schema
    * fillers, same or narrower modes, or any value without a confining backend)
-   * keep the standing mode without approval. The calling session's cwd is
-   * always carried as the workspace root.
+   * keep the standing mode without approval. The workspace root is the original
+   * Session directory, or the deployment fallback when absent.
    * @param toolName - the mutating tool's name, for the approval audit trail.
    * @param args - the call's escalation arguments.
    * @param exec - the tool-execution context (agent, callId, signal).

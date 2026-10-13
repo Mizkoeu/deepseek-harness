@@ -301,6 +301,8 @@ type RunCodeOutput = { logs: string[]; result?: JsonValue; sandbox?: PtcRunSandb
  * off its public service API and flow here as closures instead.
  */
 export interface RunCodeBridgeOptions {
+  /** Captures the calling Session current directory before program creation. */
+  resolveWorkingDirectory: (exec: ToolRunContext) => Promise<string | undefined>
   /** Reads the approval channel when a program requests a wider sandbox mode. */
   peekApprover: () => ApprovalService | undefined
   /** Resolves standing Session authority only for a runtime that enforces file policy. */
@@ -402,6 +404,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         })
         policy = { ...confined, mode: approvedMode }
       }
+      const cwd = await options.resolveWorkingDirectory(exec)
       exec.signal.throwIfAborted()
 
       // The run-scoped abort: follows the outer signal in, and fires when the
@@ -594,6 +597,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                 isError: result.isError,
                 ...result.error?.info === undefined ? {} : { error: result.error.info },
                 content: logged,
+                ...result.meta === undefined ? {} : { meta: result.meta },
               })
             })().finally(() => { logWork.delete(task) })
             logWork.add(task)
@@ -701,7 +705,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               errorClass: { name: 'ToolCallError', memberNameProperty: 'toolName' },
             }],
             signal: runController.signal,
-            ...exec.agent?.session.header.cwd !== undefined ? { cwd: exec.agent.session.header.cwd } : {},
+            ...cwd !== undefined ? { cwd } : {},
             ...policy !== undefined ? { sandboxPolicy: policy } : {},
             ...args.timeoutMs !== undefined ? { timeoutMs: args.timeoutMs } : {},
           }))
@@ -751,7 +755,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
       const instructions = runtime?.executionInstructions
       return resolveFlavor(peekRuntime).description
         + (instructions ? ` ${instructions}` : '')
-        + (runtime === undefined ? '' : " The working directory is the Session's current directory.")
+        + (runtime === undefined ? '' : " Each program starts in the Session's current directory. Running programs keep their initial directory.")
         + escalationGuidance(runtime)
     },
   })
